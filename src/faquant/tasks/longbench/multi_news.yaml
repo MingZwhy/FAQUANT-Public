@@ -1,0 +1,20 @@
+task: faquant_longbench_multi_news
+dataset_path: THUDM/LongBench
+dataset_name: multi_news
+dataset_kwargs:
+  trust_remote_code: true
+test_split: test
+doc_to_text: "You are given several news passages. Write a one-page summary of all news. \n\nNews:\n{{context}}\n\nNow, write a one-page summary of all the news.\n\nSummary:"
+doc_to_target: "{{answers}}"
+process_results: !function metrics.get_rouge_with_score
+generation_kwargs:
+  max_gen_toks: 512
+  temperature: 1
+  do_sample: false
+  until: []
+metric_list:
+  - metric: score
+    aggregation: mean
+    higher_is_better: true
+metadata:
+  version: 1.0

@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "faquant-public"
+version = "0.1.0"
+description = "Reproducible Qwen3-8B HiF4 W4A4 PTQ and QAD evaluation"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = {file = "LICENSE"}
+dependencies = [
+  "accelerate==1.12.0",
+  "datasets>=3,<5",
+  "einops>=0.8",
+  "numpy>=1.26,<3",
+  "pyyaml>=6.0",
+  "safetensors>=0.5",
+  "torch>=2.6,<2.9",
+  "transformers==4.57.6",
+  "zstandard>=0.23",
+  "lm_eval[longbench] @ git+https://github.com/EleutherAI/lm-evaluation-harness.git@f4d4b3de3ee6741a7151a9fe74945ee515262f4c",
+]
+
+[project.optional-dependencies]
+flash = ["flash-attn==2.8.3.post1"]
+test = ["pytest>=8"]
+
+[project.scripts]
+faquant-prepare-data = "faquant.workflows.prepare_data:main"
+faquant-validate-data = "faquant.workflows.validate_data:main"
+faquant-prepare-ptq = "faquant.workflows.prepare_ptq:main"
+faquant-calibrate-smooth-qk = "faquant.workflows.calibrate_smooth_qk:main"
+faquant-train-qad = "faquant.workflows.train_qad:main"
+faquant-materialize-protection = "faquant.workflows.materialize_protection:main"
+faquant-eval-bf16 = "faquant.workflows.eval_bf16:main"
+faquant-eval-mmlu = "faquant.workflows.eval_mmlu:main"
+faquant-eval-longbench = "faquant.workflows.eval_longbench:main"
+faquant-run-longbench = "faquant.workflows.run_longbench:main"
+faquant-summarize-longbench = "faquant.workflows.summarize_longbench:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+faquant = ["tasks/longbench/*.yaml", "tasks/longbench/*.py"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,73 @@
+{
+  "benchmark": "THUDM LongBench v1 main",
+  "source_commit": "2e00731f8d0bff23dc4325161044d0ed8af94c1e",
+  "tasks": 21,
+  "samples": 4750,
+  "max_context_length": 40960,
+  "truncation": "middle",
+  "decoding": "greedy",
+  "quantization_scope": "prefill_only",
+  "first_generated_token": "quantized",
+  "decode_precision": "bfloat16",
+  "reuse_quantized_prefill_kv_cache": true,
+  "bf16_macro": 49.43523809523809,
+  "candidate_macro": 48.35285714285714,
+  "loss_pp": 1.0823809523809524,
+  "categories": {
+    "single_document_qa": {
+      "bf16": 47.8,
+      "candidate": 45.38,
+      "loss_pp": 2.42
+    },
+    "multi_document_qa": {
+      "bf16": 41.4025,
+      "candidate": 39.0325,
+      "loss_pp": 2.37
+    },
+    "summarization": {
+      "bf16": 24.12,
+      "candidate": 23.8575,
+      "loss_pp": 0.2625
+    },
+    "few_shot_learning": {
+      "bf16": 63.51,
+      "candidate": 63.5725,
+      "loss_pp": -0.0625
+    },
+    "synthetic": {
+      "bf16": 66.5,
+      "candidate": 66.0,
+      "loss_pp": 0.5
+    },
+    "code": {
+      "bf16": 65.655,
+      "candidate": 65.02,
+      "loss_pp": 0.635
+    }
+  },
+  "task_results": {
+    "narrativeqa": {"bf16": 26.49, "candidate": 24.96, "loss_pp": 1.53},
+    "qasper": {"bf16": 48.35, "candidate": 44.71, "loss_pp": 3.64},
+    "multifieldqa_en": {"bf16": 53.24, "candidate": 49.13, "loss_pp": 4.11},
+    "multifieldqa_zh": {"bf16": 63.12, "candidate": 62.72, "loss_pp": 0.4},
+    "hotpotqa": {"bf16": 58.98, "candidate": 57.27, "loss_pp": 1.71},
+    "2wikimqa": {"bf16": 43.37, "candidate": 41.24, "loss_pp": 2.13},
+    "musique": {"bf16": 36.3, "candidate": 32.77, "loss_pp": 3.53},
+    "dureader": {"bf16": 26.96, "candidate": 24.85, "loss_pp": 2.11},
+    "gov_report": {"bf16": 33.34, "candidate": 32.68, "loss_pp": 0.66},
+    "qmsum": {"bf16": 24.31, "candidate": 23.27, "loss_pp": 1.04},
+    "multi_news": {"bf16": 24.71, "candidate": 24.5, "loss_pp": 0.21},
+    "vcsum": {"bf16": 14.12, "candidate": 14.98, "loss_pp": -0.86},
+    "trec": {"bf16": 71.5, "candidate": 72.0, "loss_pp": -0.5},
+    "triviaqa": {"bf16": 90.71, "candidate": 90.61, "loss_pp": 0.1},
+    "samsum": {"bf16": 44.33, "candidate": 44.18, "loss_pp": 0.15},
+    "lsht": {"bf16": 47.5, "candidate": 47.5, "loss_pp": 0.0},
+    "passage_count": {"bf16": 1.5, "candidate": 1.5, "loss_pp": 0.0},
+    "passage_retrieval_en": {"bf16": 100.0, "candidate": 99.0, "loss_pp": 1.0},
+    "passage_retrieval_zh": {"bf16": 98.0, "candidate": 97.5, "loss_pp": 0.5},
+    "lcc": {"bf16": 67.88, "candidate": 67.42, "loss_pp": 0.46},
+    "repobench-p": {"bf16": 63.43, "candidate": 62.62, "loss_pp": 0.81}
+  },
+  "sample_hash_mismatches": 0,
+  "raw_samples_in_repository": false
+}

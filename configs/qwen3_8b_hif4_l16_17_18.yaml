@@ -1,0 +1,101 @@
+model:
+  id: Qwen/Qwen3-8B
+  dtype: bfloat16
+
+quantization:
+  format: hif4
+  weight_bits: 4
+  activation_bits: 4
+  group_size: 64
+  qk_matmul_quant: true
+  pv_matmul_quant: true
+  qk_mxfp8_layers: []
+  pv_normalizer_mode: quantized_same
+
+gptq:
+  dataset: Salesforce/wikitext
+  subset: wikitext-2-raw-v1
+  split: train
+  samples: 128
+  sequence_length: 2048
+  seed: 0
+  damping: 0.01
+  damping_overrides:
+    o_proj: 0.03
+    down_proj: 0.03
+  sequential_groups: true
+  act_order_within_group: false
+
+transforms:
+  hisq:
+    enabled: true
+    block_size: 1024
+    seed: 17
+  value_head_rotation: true
+  post_rope_qk_hadamard: true
+  smooth_qk:
+    statistic: max
+    alpha: 0.5
+    samples: 8
+    sequence_length: 4096
+    seed: 0
+    scale_clamp: 32.0
+
+qad:
+  dataset: togethercomputer/RedPajama-Data-1T-Sample
+  seed: 3407
+  phase_1:
+    attention: exact
+    steps: 250
+  phase_2:
+    attention: deployed
+    steps: 125
+  selected_step: 375
+  learning_rate: 4.0e-5
+  scheduler: cosine
+  scheduler_total_steps: 1250
+  warmup_ratio: 0.0104
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  max_sequence_length: 1024
+  global_batch_size: 256
+  micro_batch_size: 4
+  gradient_accumulation_steps: 8
+  metadata_mode: fixed
+  trainable_scope: qat-linears
+  loss:
+    task_alpha: 0.05
+    logit_alpha: 2.0
+    feature_alpha: 0.5
+    feature_topk: 3
+    kl_mode: eakld
+    temperature: 1.0
+
+protection:
+  timing: post-qad
+  layers: [16, 17, 18]
+  projections:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+
+evaluation:
+  mmlu:
+    tasks: mmlu
+    fewshot: 0
+    apply_chat_template: true
+    thinking: false
+  longbench:
+    tasks: 21
+    samples: 4750
+    max_length: 40960
+    truncation: middle
+    decoding: greedy
+    quantization_scope: prefill_only
+    first_generated_token: quantized
+    decode_precision: bfloat16
+    reuse_quantized_prefill_kv_cache: true

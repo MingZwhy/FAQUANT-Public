@@ -1,0 +1,32 @@
+{
+  "benchmark": "MMLU",
+  "setting": "0-shot",
+  "samples": 14042,
+  "aggregation": "sample-weighted accuracy",
+  "bf16_percent": 72.95969235151688,
+  "candidate_percent": 71.96268337843613,
+  "loss_pp": 0.9970089730807596,
+  "groups": {
+    "stem": {
+      "samples": 3153,
+      "bf16_percent": 72.5023786869648,
+      "candidate_percent": 72.09007294640025
+    },
+    "other": {
+      "samples": 3107,
+      "bf16_percent": 77.08400386224654,
+      "candidate_percent": 75.60347602188606
+    },
+    "social_sciences": {
+      "samples": 3077,
+      "bf16_percent": 83.10042248943776,
+      "candidate_percent": 81.8329541761456
+    },
+    "humanities": {
+      "samples": 4705,
+      "bf16_percent": 63.91073326248672,
+      "candidate_percent": 63.01806588735388
+    }
+  },
+  "raw_samples_in_repository": false
+}

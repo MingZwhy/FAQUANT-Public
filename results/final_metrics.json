@@ -1,0 +1,38 @@
+{
+  "model": "Qwen/Qwen3-8B",
+  "candidate_id": "qwen3-8b-hif4-l16-17-18",
+  "method": {
+    "quant_format": "HiF4 W4A4",
+    "qad_schedule": "250 exact-attention steps + 125 deployed-attention steps",
+    "selected_step": 375,
+    "protected_layers": [16, 17, 18],
+    "qk_mxfp8_layers": [],
+    "quantized_linears": 231,
+    "total_linears": 252
+  },
+  "mmlu_0shot": {
+    "samples": 14042,
+    "bf16_percent": 72.95969235151688,
+    "candidate_percent": 71.96268337843613,
+    "loss_pp": 0.9970089730807596
+  },
+  "longbench": {
+    "tasks": 21,
+    "samples": 4750,
+    "quantization_scope": "prefill_only",
+    "first_generated_token": "quantized",
+    "decode_precision": "bfloat16",
+    "reuse_quantized_prefill_kv_cache": true,
+    "bf16_macro": 49.43523809523809,
+    "candidate_macro": 48.35285714285714,
+    "loss_pp": 1.0823809523809524
+  },
+  "checkpoint_sha256": {
+    "model-00001-of-00005.safetensors": "8a28b181848c9aff3975d653b462d3297c45acec55f4b34880e8389c9f889e4a",
+    "model-00002-of-00005.safetensors": "64472cf4291dfa8bd6e65b604d69ec9cccca911d1a79e949f3792a869476f652",
+    "model-00003-of-00005.safetensors": "efee5160948e1413dc5d407959694a31a3e4bd5acd200bd3753ede88c3193906",
+    "model-00004-of-00005.safetensors": "f7f94a831b3e9b950fc7c27bcf3aabf3699bc11182a921d07b4e45a19098b397",
+    "model-00005-of-00005.safetensors": "e6a26ff9f5704abf04986da1f0b8917d227b5906d27bc7f8436afdeb0d10da02"
+  },
+  "weights_in_repository": false
+}

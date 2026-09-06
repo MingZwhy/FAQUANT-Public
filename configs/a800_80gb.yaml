@@ -1,0 +1,23 @@
+profile: a800_80gb_example
+python: "3.11"
+torch: "2.6.0+cu124"
+transformers: "4.57.6"
+flash_attention: "2.7.4.post1"
+
+training:
+  processes_per_node: 8
+  micro_batch_size: 4
+  gradient_accumulation_steps: 8
+  global_batch_size: 256
+
+evaluation:
+  mmlu_batch_size: 16
+  longbench_batch_size: 1
+  longbench_shards_per_task: 4
+  attention_query_chunk_size: 256
+  attention_key_chunk_size: 128
+
+notes:
+  - Reduce micro_batch_size first if memory is insufficient.
+  - Increase gradient accumulation to preserve global batch size 256.
+  - LongBench prefill-only evaluation holds quantized and BF16 models together.

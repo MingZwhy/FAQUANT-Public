@@ -1,0 +1,29 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.venv/
+build/
+dist/
+
+# Never commit generated model/data artifacts.
+data/
+logs/
+outputs/
+checkpoints/
+wandb/
+*.safetensors
+*.bin
+*.ckpt
+*.pt
+*.pth
+*.tar
+*.tar.gz
+*.zip
+
+# Only compact, reviewed summaries belong under results/.
+results/*
+!results/*.json
+!results/*.md
