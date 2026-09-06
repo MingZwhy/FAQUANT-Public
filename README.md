@@ -1,5 +1,7 @@
 # FAQUANT-Public
 
+[English](README.md) | [简体中文](README_zh-CN.md)
+
 Minimal reproduction code and aggregate results for Qwen3-8B HiF4 W4A4 PTQ,
 QAD, post-QAD layer protection, and prefill-only LongBench evaluation.
 
