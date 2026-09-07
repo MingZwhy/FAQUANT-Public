@@ -28,11 +28,11 @@
     "loss_pp": 1.0823809523809524
   },
   "checkpoint_sha256": {
-    "model-00001-of-00005.safetensors": "8a28b181848c9aff3975d653b462d3297c45acec55f4b34880e8389c9f889e4a",
-    "model-00002-of-00005.safetensors": "64472cf4291dfa8bd6e65b604d69ec9cccca911d1a79e949f3792a869476f652",
-    "model-00003-of-00005.safetensors": "efee5160948e1413dc5d407959694a31a3e4bd5acd200bd3753ede88c3193906",
-    "model-00004-of-00005.safetensors": "f7f94a831b3e9b950fc7c27bcf3aabf3699bc11182a921d07b4e45a19098b397",
-    "model-00005-of-00005.safetensors": "e6a26ff9f5704abf04986da1f0b8917d227b5906d27bc7f8436afdeb0d10da02"
+    "model-00001-of-00005.safetensors": "9306646e20c2fd75ae7dcf9e307c44470f6739d2b4d68771b5634564a3f3c6d6",
+    "model-00002-of-00005.safetensors": "8b8fb15304deba89cbc1949550b8a2f23964da90801bcaf403c1d27a75861e33",
+    "model-00003-of-00005.safetensors": "a8caf38e74d4a581dab3dbe12059886652333fd0cc37b4a37c440b31f41efad2",
+    "model-00004-of-00005.safetensors": "b323524241f06f021a421bb29fd1306aa8e2a4fa9eef84c3e343d7d739d199e5",
+    "model-00005-of-00005.safetensors": "fd6a97f74a2c07ee68fcd5f4df025a53de3f78bde629dcba0264b5faf70bde3d"
   },
   "weights_in_repository": false
 }
