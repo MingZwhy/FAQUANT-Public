@@ -34,7 +34,8 @@ LongBench 评测中，完整提示词的预填充（prefill）和第一个生成
 
 评测使用的检查点由
 [`results/final_metrics.json`](results/final_metrics.json) 中的 SHA-256
-值唯一标识。首次发布不包含模型权重。
+值唯一标识。模型权重单独发布在
+[Hugging Face](https://huggingface.co/MingZwhy/qwen3-8b-hif4-l16-17-18)。
 
 ## 安装
 

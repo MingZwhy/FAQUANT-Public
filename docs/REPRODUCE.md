@@ -101,7 +101,23 @@ $OUTPUT_DIR/qad/deployed/student-step-375
 Distributed QAD is not claimed to be byte-deterministic across hardware
 partitions. Published checkpoint hashes identify the evaluated artifact.
 
-## 5. Materialize layers 16/17/18
+## 5. Obtain or materialize layers 16/17/18
+
+Download the evaluated artifact:
+
+```python
+import os
+
+from huggingface_hub import snapshot_download
+
+snapshot_download(
+    "MingZwhy/qwen3-8b-hif4-l16-17-18",
+    local_dir=f"{os.environ['OUTPUT_DIR']}/qwen3-8b-hif4-l16-17-18",
+)
+```
+
+Alternatively, materialize the same protection from a reproduced step-375
+checkpoint:
 
 ```bash
 python scripts/materialize_protection.py \

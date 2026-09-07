@@ -34,8 +34,9 @@ See [Method](docs/METHOD.md), [Reproduction](docs/REPRODUCE.md), and
 - QK MXFP8 layers: none
 
 The evaluated checkpoint is identified by SHA-256 values in
-[`results/final_metrics.json`](results/final_metrics.json). The weights are not
-part of this initial release.
+[`results/final_metrics.json`](results/final_metrics.json). The weights are
+distributed separately on
+[Hugging Face](https://huggingface.co/MingZwhy/qwen3-8b-hif4-l16-17-18).
 
 ## Installation
 

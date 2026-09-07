@@ -22,5 +22,6 @@
 ## Artifact identity
 
 The five expected checkpoint SHA-256 values are published in
-`results/final_metrics.json`. A future separately distributed checkpoint must
-match all five values.
+`results/final_metrics.json`. The separately distributed
+[Hugging Face checkpoint](https://huggingface.co/MingZwhy/qwen3-8b-hif4-l16-17-18)
+must match all five values.
