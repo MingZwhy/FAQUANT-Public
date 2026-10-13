@@ -6,6 +6,7 @@ from typing import Optional
 import torch
 
 from .config import PV_NORMALIZER_MODES
+from .hif4 import HIF4_ATTN_OPERAND_SCALE_LEVELS, HIF4_ATTN_SCALE_LEVELS
 from .quantization import fake_quantize
 
 
@@ -274,14 +275,16 @@ def _cached_decode_quantize(
         and cached.shape[-1] == tensor.shape[-1]
         and cached.shape[-2] + 1 == tensor.shape[-2]
     )
+    levels = HIF4_ATTN_OPERAND_SCALE_LEVELS[operand]
     if can_append:
         quantized_tail = _fake_quantize_tail(
             tensor[..., cached.shape[-2] :, :],
+            levels=levels,
             **quant_kwargs,
         )
         quantized = torch.cat((cached, quantized_tail), dim=-2)
     else:
-        quantized = _fake_quantize_tail(tensor, **quant_kwargs)
+        quantized = _fake_quantize_tail(tensor, levels=levels, **quant_kwargs)
     setattr(module, cache_name, quantized)
     return quantized
 
@@ -294,6 +297,7 @@ def _fake_quantize_tail(
     group_size: int,
     symmetric: bool,
     clip_ratio: float,
+    levels: str = HIF4_ATTN_SCALE_LEVELS,
 ) -> torch.Tensor:
     """Fake-quantize a tile whose final group may be shorter than group_size.
 
@@ -313,6 +317,7 @@ def _fake_quantize_tail(
             group_size=group_size,
             symmetric=symmetric,
             clip_ratio=clip_ratio,
+            hif4_levels=levels,
         )
     else:
         remainder = tensor.shape[-1] % group_size
@@ -325,6 +330,7 @@ def _fake_quantize_tail(
             group_size=group_size,
             symmetric=symmetric,
             clip_ratio=clip_ratio,
+            hif4_levels=levels,
         )
         quantized = quantized[..., : tensor.shape[-1]]
     if tensor.requires_grad:
@@ -605,7 +611,11 @@ def simulated_flash_attention_forward(
     quantized_value = _repeat_kv(quantized_value, kv_repeats)
 
     quantized_query = (
-        _fake_quantize_tail(query, **qk_quant_kwargs) if qk_quant else query
+        _fake_quantize_tail(
+            query, levels=HIF4_ATTN_OPERAND_SCALE_LEVELS["q"], **qk_quant_kwargs
+        )
+        if qk_quant
+        else query
     )
     output = torch.zeros_like(query)
     qk_tiles = pv_tiles = 0
@@ -789,7 +799,9 @@ def simulated_flash_attention_forward(
             )
             if pv_quant:
                 probability_operand = _fake_quantize_tail(
-                    probabilities, **pv_quant_kwargs
+                    probabilities,
+                    levels=HIF4_ATTN_OPERAND_SCALE_LEVELS["p"],
+                    **pv_quant_kwargs,
                 )
                 value_operand = quantized_value[:, :, key_start:key_stop]
                 _record_quantized_operand(

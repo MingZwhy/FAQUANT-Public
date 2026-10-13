@@ -222,13 +222,42 @@ def _fuse_norm(norm: nn.Module, linears: tuple[nn.Linear, ...]) -> None:
 
 
 @torch.inference_mode()
+def fuse_qwen3_reader_norms(model: nn.Module) -> dict[str, object]:
+    """Fold each decoder layer's RMSNorm gamma into the projections that read it.
+
+    The first step of ``apply_qwen3_global_rotation`` without the rotation, so
+    its two effects can be measured apart. Exact up to the rounding of the
+    products to the weight dtype; the final norm is left alone.
+    """
+
+    for layer in model.model.layers:
+        _fuse_norm(
+            layer.input_layernorm,
+            (layer.self_attn.q_proj, layer.self_attn.k_proj, layer.self_attn.v_proj),
+        )
+        _fuse_norm(
+            layer.post_attention_layernorm,
+            (layer.mlp.gate_proj, layer.mlp.up_proj),
+        )
+    return {
+        "construction": "RMSNorm gamma folded into q/k/v and gate/up",
+        "layers": len(model.model.layers),
+        "online_cost": "none",
+    }
+
+
+@torch.inference_mode()
 def apply_qwen3_value_head_rotation(
     model: nn.Module,
     *,
     exempt_modules: Iterable[tuple[int, str]] = (),
     block_sizes: dict[int, int] | None = None,
+    device: torch.device | str | None = None,
 ) -> dict[str, object]:
     """Fold a per-head Hadamard through V and the attention output.
+
+    ``device`` computes each fold there and writes it back, so a model kept in
+    CPU memory gets the same arithmetic as one resident on the GPU.
 
     ``apply_qwen3_global_rotation`` already contains this pair, but the HiSQ
     recipe rotates each Linear's *input* instead and therefore leaves the
@@ -283,12 +312,12 @@ def apply_qwen3_value_head_rotation(
             # A bias would leave the fold inexact: it is added after the
             # rotated projection but is not itself rotated.
             raise ValueError("Qwen3 v_proj is expected to have no bias")
-        attention.v_proj.weight.data.copy_(
-            _left_hadamard_blocks(attention.v_proj.weight.data, block_size)
-        )
-        attention.o_proj.weight.data.copy_(
-            _right_hadamard_blocks(attention.o_proj.weight.data, block_size)
-        )
+        v_weight = attention.v_proj.weight.data
+        o_weight = attention.o_proj.weight.data
+        if device is not None:
+            v_weight, o_weight = v_weight.to(device), o_weight.to(device)
+        attention.v_proj.weight.data.copy_(_left_hadamard_blocks(v_weight, block_size))
+        attention.o_proj.weight.data.copy_(_right_hadamard_blocks(o_weight, block_size))
     return {
         "construction": "per-head Hadamard folded into v_proj rows and o_proj columns",
         "head_dim": head_dim,
@@ -301,23 +330,51 @@ def apply_qwen3_value_head_rotation(
 
 @torch.inference_mode()
 def apply_qwen3_global_rotation(
-    model: nn.Module, *, seed: int = 0, online_hadamard: bool = True
+    model: nn.Module, *, seed: int = 0, online_hadamard: bool = True,
+    device: torch.device | str | None = None,
 ) -> torch.Tensor:
     """Bake QuaRot-style residual and per-head Hadamard rotations into Qwen3.
 
-    The residual-stream rotation is randomized and global. Value/output head
-    rotations are deterministic. Q/K online rotation is installed separately by
-    the Qwen3 attention adapter because it must happen after RoPE.
+    The residual-stream rotation is randomized and global: a random-sign Hadamard
+    when hidden_size is a power of two, otherwise one instance of HiSQ's
+    sign/permutation/block-Hadamard construction shared by the whole network
+    (Qwen3-32B: 5120 = 5 x 1024), kept as ``faquant_global_rotation_*`` buffers
+    and computed on ``device`` when given (the model may sit in CPU memory).
+    Value/output head rotations are deterministic. Q/K online rotation is
+    installed separately by the Qwen3 attention adapter because it must happen
+    after RoPE.
     """
 
     hidden_size = model.config.hidden_size
     head_dim = model.config.head_dim
-    if not _is_power_of_two(hidden_size) or not _is_power_of_two(head_dim):
-        raise ValueError("Qwen3 hidden_size and head_dim must be powers of two")
+    if not _is_power_of_two(head_dim):
+        raise ValueError("Qwen3 head_dim must be a power of two")
 
-    generator = torch.Generator(device="cpu").manual_seed(seed)
-    signs = torch.randint(0, 2, (hidden_size,), generator=generator, dtype=torch.int8)
-    signs = signs.mul(2).sub(1)
+    shared = None
+    if _is_power_of_two(hidden_size):
+        generator = torch.Generator(device="cpu").manual_seed(seed)
+        signs = torch.randint(0, 2, (hidden_size,), generator=generator, dtype=torch.int8)
+        signs = signs.mul(2).sub(1)
+
+        def right(tensor: torch.Tensor) -> torch.Tensor:
+            return _right_random_hadamard(tensor, signs)
+
+        def left_transpose(tensor: torch.Tensor) -> torch.Tensor:
+            return _left_random_hadamard_transpose(tensor, signs)
+    else:
+        from .hisq_rotation import apply_hisq_rotation, derive_hisq_rotation
+
+        shared = derive_hisq_rotation(
+            "global_residual", hidden_size, seed=seed,
+            block_size=min(hidden_size & -hidden_size, 1024),
+        )
+
+        def right(tensor: torch.Tensor) -> torch.Tensor:
+            work = tensor if device is None else tensor.to(device)
+            return apply_hisq_rotation(work, shared).to(tensor.device)
+
+        def left_transpose(tensor: torch.Tensor) -> torch.Tensor:
+            return right(tensor.T.contiguous()).T.contiguous()
 
     # Fold learned RMSNorm scales into their consumers before rotating.
     for layer in model.model.layers:
@@ -331,12 +388,8 @@ def apply_qwen3_global_rotation(
         )
     _fuse_norm(model.model.norm, (model.lm_head,))
 
-    model.model.embed_tokens.weight.data.copy_(
-        _right_random_hadamard(model.model.embed_tokens.weight.data, signs)
-    )
-    model.lm_head.weight.data.copy_(
-        _right_random_hadamard(model.lm_head.weight.data, signs)
-    )
+    model.model.embed_tokens.weight.data.copy_(right(model.model.embed_tokens.weight.data))
+    model.lm_head.weight.data.copy_(right(model.lm_head.weight.data))
 
     for layer in model.model.layers:
         for linear in (
@@ -346,17 +399,13 @@ def apply_qwen3_global_rotation(
             layer.mlp.gate_proj,
             layer.mlp.up_proj,
         ):
-            linear.weight.data.copy_(_right_random_hadamard(linear.weight.data, signs))
+            linear.weight.data.copy_(right(linear.weight.data))
 
         for linear in (layer.self_attn.o_proj, layer.mlp.down_proj):
-            linear.weight.data.copy_(
-                _left_random_hadamard_transpose(linear.weight.data, signs)
-            )
+            linear.weight.data.copy_(left_transpose(linear.weight.data))
             if linear.bias is not None:
                 bias = linear.bias.data.reshape(-1, 1)
-                linear.bias.data.copy_(
-                    _left_random_hadamard_transpose(bias, signs).reshape(-1)
-                )
+                linear.bias.data.copy_(left_transpose(bias).reshape(-1))
 
         # H rotations on V and the attention output cancel exactly around FA.
         layer.self_attn.v_proj.weight.data.copy_(
@@ -374,5 +423,10 @@ def apply_qwen3_global_rotation(
             )
             layer.mlp.down_proj = OnlineHadamardLinear(layer.mlp.down_proj)
 
+    if shared is not None:
+        # Not faquant_rotation_signs: the helpers that read it assume a plain Hadamard.
+        model.register_buffer("faquant_global_rotation_signs", shared.signs, persistent=True)
+        model.register_buffer("faquant_global_rotation_permutation", shared.permutation, persistent=True)
+        return shared.signs
     model.register_buffer("faquant_rotation_signs", signs, persistent=True)
     return signs

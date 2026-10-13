@@ -15,6 +15,7 @@ from safetensors import safe_open
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from faquant.qad_checkpoint import (
+    load_qad_inference_checkpoint,
     load_qad_student_checkpoint,
     recorded_quant_exempt_layers,
     recorded_quant_exempt_modules,
@@ -23,6 +24,13 @@ from faquant.qad_quantization import (
     convert_hif4_qat_to_inference,
     set_hif4_qat_metadata_mode,
 )
+from faquant.hif4 import (
+    HIF4_ACT_SCALE_LEVELS,
+    HIF4_ATTN_OPERAND_SCALE_LEVELS,
+    HIF4_ATTN_SCALE_LEVELS,
+    HIF4_SCALE_LEVELS,
+)
+from faquant.qad import QAD_ROTATIONS
 from faquant.quantization import FakeQuantLinear
 from faquant.qwen3 import (
     DEFAULT_MODEL,
@@ -36,14 +44,19 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--model", default=DEFAULT_MODEL)
-    parser.add_argument(
-        "--rotation",
-        choices=("hadamard", "none", "hisq1024"),
-        required=True,
-    )
+    parser.add_argument("--rotation", choices=QAD_ROTATIONS, required=True)
     parser.add_argument("--tasks", default="mmlu")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--device", default="cuda:0")
+    parser.add_argument(
+        "--device-map",
+        choices=("single", "auto"),
+        default="single",
+        help=(
+            "'auto' splits the decoder layers across every visible GPU; "
+            "--device must then be the first visible GPU."
+        ),
+    )
     parser.add_argument("--batch-size", default="16")
     parser.add_argument("--max-length", type=int, default=40960)
     parser.add_argument(
@@ -105,7 +118,7 @@ def parse_args() -> argparse.Namespace:
         "--qk-smooth-scales",
         type=Path,
         help=(
-            "Frozen Smooth-QK artifact from scripts/calibrate_qk_smooth_scales.py. "
+            "Frozen Smooth-QK artifact from faquant-calibrate-smooth-qk. "
             "Migrates the post-RoPE channel imbalance out of K and into Q without "
             "changing the scores, so it only matters when Q/K are quantized."
         ),
@@ -163,7 +176,28 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--skip-weight-hash",
         action="store_true",
-        help="Skip the slow 252-linear SHA-256 pass for screening evaluations.",
+        help="Skip the slow all-linear SHA-256 pass for screening evaluations.",
+    )
+    parser.add_argument(
+        "--protect-layers",
+        default="",
+        help=(
+            "Comma-separated decoder layers restored to the --model BF16 "
+            "weights at evaluation time, with a clean attention core. This is "
+            "GPTQ-then-protect: the other layers keep GPTQ weights solved "
+            "around quantized versions of these, so use it to screen layers "
+            "and rebuild with --quant-exempt-layers for the final numbers."
+        ),
+    )
+    parser.add_argument(
+        "--inference-load",
+        action="store_true",
+        help=(
+            "Load a step-0 checkpoint straight into inference fake-quant "
+            "linears instead of through the QAT skeleton, whose metadata and "
+            "conversion peak do not fit a 32B model on one GPU. Every weight "
+            "is re-quantized with its saved HiF4 metadata and must match."
+        ),
     )
     return parser.parse_args()
 
@@ -207,6 +241,47 @@ def _expand_protected_modules(
     return frozenset(pairs)
 
 
+def restore_base_layers(
+    model: torch.nn.Module, base: str | Path, layers: tuple[int, ...]
+) -> int:
+    """Swap the seven projections of ``layers`` for the base model's BF16 ones.
+
+    Restoring v_proj and o_proj together also undoes the value-head fold, which
+    only pairs those two, so the layer computes exactly what the base model does.
+    """
+
+    base = Path(base)
+    weight_map = json.loads(
+        (base / "model.safetensors.index.json").read_text(encoding="utf-8")
+    )["weight_map"]
+    by_shard: dict[str, list[tuple[int, str, str, str]]] = {}
+    for index in layers:
+        for owner, names in (
+            ("self_attn", ("q_proj", "k_proj", "v_proj", "o_proj")),
+            ("mlp", ("gate_proj", "up_proj", "down_proj")),
+        ):
+            for name in names:
+                key = f"model.layers.{index}.{owner}.{name}.weight"
+                by_shard.setdefault(weight_map[key], []).append((index, owner, name, key))
+    restored = 0
+    for shard, entries in by_shard.items():
+        with safe_open(base / shard, framework="pt", device="cpu") as tensors:
+            for index, owner, name, key in entries:
+                parent = getattr(model.model.layers[index], owner)
+                device = getattr(parent, name).weight.device
+                weight = tensors.get_tensor(key)
+                linear = torch.nn.Linear(
+                    weight.shape[1], weight.shape[0], bias=False,
+                    device=device, dtype=weight.dtype,
+                )
+                with torch.no_grad():
+                    linear.weight.copy_(weight)
+                linear.requires_grad_(False)
+                setattr(parent, name, linear)
+                restored += 1
+    return restored
+
+
 def _layer_list(raw: str, flag: str) -> tuple[int, ...]:
     if not raw.strip():
         return ()
@@ -237,9 +312,10 @@ def main() -> None:
         local_files_only=True,
         dtype=torch.bfloat16,
         attn_implementation="flash_attention_2",
-        device_map={"": args.device},
+        device_map={"": args.device} if args.device_map == "single" else "auto",
         low_cpu_mem_usage=True,
     )
+    num_layers = model.config.num_hidden_layers
     receipt_path = args.checkpoint / "training_receipt.json"
     training_receipt = (
         json.loads(receipt_path.read_text(encoding="utf-8"))
@@ -258,13 +334,30 @@ def main() -> None:
     protected_modules = _expand_protected_modules(
         whole_exempt, recorded_quant_exempt_modules(args.checkpoint)
     )
-    loaded = load_qad_student_checkpoint(
-        model,
-        args.checkpoint,
-        rotation=args.rotation,
-        seed=0,
-        trainable_input_scales=trainable_input_scales,
-    )
+    if args.inference_load:
+        if args.rollback_projections or args.blend_checkpoint is not None:
+            raise ValueError("--inference-load does not support rollback or blending")
+        loaded = load_qad_inference_checkpoint(
+            model,
+            args.checkpoint,
+            rotation=args.rotation,
+            seed=0,
+        )
+        if loaded.requantized_max_abs != 0.0:
+            raise RuntimeError(
+                "saved weights are off their HiF4 grid: "
+                f"max_abs={loaded.requantized_max_abs}"
+            )
+        qat_linears_loaded = loaded.linears
+    else:
+        loaded = load_qad_student_checkpoint(
+            model,
+            args.checkpoint,
+            rotation=args.rotation,
+            seed=0,
+            trainable_input_scales=trainable_input_scales,
+        )
+        qat_linears_loaded = loaded.qat.converted
     if loaded.missing_keys or loaded.unexpected_keys:
         raise RuntimeError(
             f"QAD checkpoint state mismatch: missing={loaded.missing_keys}, "
@@ -288,7 +381,9 @@ def main() -> None:
     rollback_weights = 0
     rollback_layers = _layer_list(args.rollback_layers, "--rollback-layers")
     rollback_layer_set = (
-        frozenset(range(36)) if not rollback_layers else frozenset(rollback_layers)
+        frozenset(range(num_layers))
+        if not rollback_layers
+        else frozenset(rollback_layers)
     )
     if rollback_projections:
         if args.rollback_checkpoint is None:
@@ -382,7 +477,7 @@ def main() -> None:
                         ).to(module.weight.dtype)
                     )
                     blended_weights += 1
-        expected_blended = 36 * len(blend_projections)
+        expected_blended = num_layers * len(blend_projections)
         if blended_weights != expected_blended:
             raise RuntimeError(
                 f"blend covered {blended_weights} weights, expected "
@@ -416,7 +511,8 @@ def main() -> None:
             )
         else:
             metadata_mode = "fixed"
-    set_hif4_qat_metadata_mode(model, metadata_mode)
+    if not args.inference_load:
+        set_hif4_qat_metadata_mode(model, metadata_mode)
     model.requires_grad_(False)
     model.eval()
     model.gradient_checkpointing_disable()
@@ -427,31 +523,46 @@ def main() -> None:
         return_tensors="pt",
     )
     parity = {key: value.to(args.device) for key, value in parity.items()}
-    with torch.no_grad():
-        qat_logits = model(**parity, use_cache=False).logits
-    converted = convert_hif4_qat_to_inference(model)
-    model.eval()
-    with torch.no_grad():
-        inference_logits = model(**parity, use_cache=False).logits
-    parity_max_abs = float(
-        (qat_logits.float() - inference_logits.float()).abs().max().item()
-    )
-    if parity_max_abs != 0.0:
-        raise RuntimeError(
-            "QAD-to-inference conversion parity failed: "
-            f"max_abs={parity_max_abs}"
+    if args.inference_load:
+        inference_linears = loaded.linears
+        parity_max_abs = loaded.requantized_max_abs
+    else:
+        with torch.no_grad():
+            qat_logits = model(**parity, use_cache=False).logits
+        converted = convert_hif4_qat_to_inference(model)
+        model.eval()
+        with torch.no_grad():
+            inference_logits = model(**parity, use_cache=False).logits
+        parity_max_abs = float(
+            (qat_logits.float() - inference_logits.float()).abs().max().item()
+        )
+        if parity_max_abs != 0.0:
+            raise RuntimeError(
+                "QAD-to-inference conversion parity failed: "
+                f"max_abs={parity_max_abs}"
+            )
+        inference_linears = converted.converted
+    eval_protected = _layer_list(args.protect_layers, "--protect-layers")
+    if set(eval_protected) & set(whole_exempt):
+        raise ValueError("--protect-layers names a layer the checkpoint already exempts")
+    if eval_protected:
+        restore_base_layers(model, args.model, eval_protected)
+        whole_exempt = tuple(sorted({*whole_exempt, *eval_protected}))
+        protected_modules = _expand_protected_modules(
+            whole_exempt, recorded_quant_exempt_modules(args.checkpoint)
         )
     fake_quant_linears = sum(
         isinstance(module, FakeQuantLinear) for module in model.modules()
     )
     # A whole-layer exemption removes that layer's seven projections from the
     # quantized set, so the count is no longer a constant.
-    expected_linears = 252 - len(protected_modules)
+    total_linears = 7 * num_layers
+    expected_linears = total_linears - len(protected_modules)
     if fake_quant_linears != expected_linears:
         raise RuntimeError(
             f"expected {expected_linears} fake-quant linears "
-            f"(252 minus {len(protected_modules)} protected projections), "
-            f"got {fake_quant_linears}"
+            f"({total_linears} minus {len(protected_modules)} protected "
+            f"projections), got {fake_quant_linears}"
         )
     if args.skip_weight_hash:
         weight_sha256 = None
@@ -514,9 +625,14 @@ def main() -> None:
             "checkpoint": str(args.checkpoint),
             "rotation": args.rotation,
             "metadata_mode": metadata_mode,
-            "qat_linears_loaded": loaded.qat.converted,
-            "inference_linears": converted.converted,
+            "qat_linears_loaded": qat_linears_loaded,
+            "inference_linears": inference_linears,
             "conversion_parity_max_abs": parity_max_abs,
+            "load_mode": "inference" if args.inference_load else "qat",
+            "hif4_scale_levels": HIF4_SCALE_LEVELS,
+            "hif4_act_scale_levels": HIF4_ACT_SCALE_LEVELS,
+            "hif4_attn_scale_levels": HIF4_ATTN_SCALE_LEVELS,
+            "hif4_attn_operand_scale_levels": HIF4_ATTN_OPERAND_SCALE_LEVELS,
             "weight_bits": 4,
             "activation_bits": 4,
             "quant_format": "hif4",
@@ -529,6 +645,7 @@ def main() -> None:
             "qk_mxfp8_layers": list(qk_mxfp8),
             "pv_mxfp8_layers": list(pv_mxfp8),
             "quant_exempt_layers": list(whole_exempt),
+            "eval_protected_layers": list(eval_protected),
             "quant_exempt_modules": sorted(
                 f"{index}.{name}" for index, name in protected_modules
             ),

@@ -30,11 +30,16 @@ from .config import (
 from .gptq import calibration_tokens, gptq_quantize_qwen3
 from .hisq_rotation import apply_qwen_hisq_input_rotation
 from .qad_attention import quantized_eager_attention_forward
-from .quantization import fake_quantize, quantize_qwen3_linears
+from .quantization import (
+    fake_quantize,
+    quantize_qwen3_linears,
+    replace_linear_with_fake_quant,
+)
 from .rotation import (
     apply_qwen3_global_rotation,
     apply_qwen3_value_head_rotation,
     chunked_block_hadamard_transform,
+    fuse_qwen3_reader_norms,
     hadamard_transform,
 )
 from .simulated_flash_attention import (
@@ -566,8 +571,11 @@ def prepare_model(
 
     if config.rotation == "hadamard":
         apply_qwen3_global_rotation(
-            model, seed=config.seed, online_hadamard=config.online_hadamard
+            model, seed=config.seed, online_hadamard=config.online_hadamard,
+            device=getattr(config, "gptq_execution_device", None),
         )
+    if config.qwen_fuse_reader_norms:
+        model.faquant_reader_norm_fusion_stats = fuse_qwen3_reader_norms(model)
     exempt_modules = resolve_quant_exempt_modules(config, len(model.model.layers))
     if config.qwen_value_head_rotation:
         # Before HiSQ and GPTQ: both must see the basis the model will run in,
@@ -579,14 +587,37 @@ def prepare_model(
             model,
             exempt_modules=exempt_modules,
             block_sizes={index: 32 for index in pv_mxfp8_layers},
+            device=getattr(config, "gptq_execution_device", None),
         )
     if config.qwen_hisq_input_rotation and config.weight_quant == "rtn":
+        quantize_rotated = None
+        if config.quant_target == "all":
+
+            def quantize_rotated(layer_name: str) -> None:
+                parent, _, name = layer_name.rpartition(".")
+                replace_linear_with_fake_quant(
+                    model.get_submodule(parent),
+                    name,
+                    config,
+                    weights_prequantized=False,
+                )
+
         model.faquant_hisq_rotation_stats = apply_qwen_hisq_input_rotation(
             model,
             block_size=config.qwen_hisq_rotation_block_size,
             down_proj_block_size=config.qwen_hisq_rotation_block_size_down_proj,
             seed=config.qwen_hisq_rotation_seed,
             exempt_modules=exempt_modules,
+            on_rotated=quantize_rotated,
+            projections=config.qwen_hisq_rotation_projections,
+            sharing=config.qwen_hisq_rotation_sharing,
+            global_seed=(
+                config.seed if config.qwen_hisq_global_seed is None else config.qwen_hisq_global_seed
+            ),
+            reader_construction=config.qwen_hisq_reader_construction,
+            od_construction=config.qwen_hisq_od_construction,
+            reader_block_size=config.qwen_hisq_reader_block_size,
+            o_construction=config.qwen_hisq_o_construction,
         )
     install_qwen3_attention_adapter(model, config)
     if config.qk_smooth_scales is not None:
@@ -616,8 +647,13 @@ def load_model_and_tokenizer(
     device: str = "cuda:0",
     dtype: torch.dtype = torch.bfloat16,
     attn_implementation: str = "flash_attention_2",
+    device_map: str = "single",
 ) -> tuple[nn.Module, object]:
-    """Load Qwen3 from a local path and prepare one FA-Quant experiment variant."""
+    """Load Qwen3 from a local path and prepare one FA-Quant experiment variant.
+
+    ``device_map="auto"`` splits the decoder layers across every visible GPU;
+    ``device`` must then be the first visible GPU.
+    """
 
     config = config or ExperimentConfig()
     attn_implementation = _resolve_attention_implementation(config, attn_implementation)
@@ -627,7 +663,7 @@ def load_model_and_tokenizer(
         local_files_only=True,
         dtype=dtype,
         attn_implementation=attn_implementation,
-        device_map={"": device},
+        device_map={"": device} if device_map == "single" else "auto",
         low_cpu_mem_usage=True,
     )
     if model.config.model_type != "qwen3":

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 
 import torch
@@ -8,6 +9,38 @@ from torch.nn import functional as F
 
 HIF4_BLOCK_SIZE = 64
 """Number of S1P2 values sharing one HiF4 metadata block."""
+
+HIF4_SCALE_LEVELS = os.environ.get("FAQUANT_HIF4_SCALE_LEVELS", "123")
+"""Active scale levels: ``123`` is the official format (an E6M2 scale per 64
+values, then a 1-bit exponent per 8 and per 4 values). ``12`` drops the per-4
+exponent and ``13`` the per-8 one. With a single micro-exponent the largest
+multiplier is 2 instead of 4, so the base scale covers the block maximum as
+``max / 3.5`` instead of ``max / 7``, and the remaining exponent uses the rule
+the official encoder applies to its last level. Read from the environment so
+weights, activations and attention operands of a process all use one format."""
+HIF4_ACT_SCALE_LEVELS = os.environ.get("FAQUANT_HIF4_ACT_SCALE_LEVELS", HIF4_SCALE_LEVELS)
+"""The same choice for direct-cast tensors (linear inputs and attention operands)
+when it should differ from the weights, to attribute a variant's loss."""
+HIF4_ATTN_SCALE_LEVELS = os.environ.get("FAQUANT_HIF4_ATTN_SCALE_LEVELS", HIF4_ACT_SCALE_LEVELS)
+"""The same choice for the attention matmul operands (Q, K, P, V) alone."""
+for _name, _value in (
+    ("FAQUANT_HIF4_SCALE_LEVELS", HIF4_SCALE_LEVELS),
+    ("FAQUANT_HIF4_ACT_SCALE_LEVELS", HIF4_ACT_SCALE_LEVELS),
+    ("FAQUANT_HIF4_ATTN_SCALE_LEVELS", HIF4_ATTN_SCALE_LEVELS),
+):
+    if _value not in ("123", "12", "13"):
+        raise ValueError(f"{_name} must be 123, 12 or 13, got {_value!r}")
+HIF4_ATTN_OPERAND_SCALE_LEVELS = dict.fromkeys(("q", "k", "p", "v"), HIF4_ATTN_SCALE_LEVELS)
+"""Per-operand override of the attention variant, e.g.
+``FAQUANT_HIF4_ATTN_OPERAND_LEVELS=p=123,v=123``, to split a variant's attention
+loss between Q, K, P and V."""
+for _entry in filter(None, os.environ.get("FAQUANT_HIF4_ATTN_OPERAND_LEVELS", "").split(",")):
+    _operand, _, _value = _entry.partition("=")
+    if _operand not in HIF4_ATTN_OPERAND_SCALE_LEVELS or _value not in ("123", "12", "13"):
+        raise ValueError(
+            f"FAQUANT_HIF4_ATTN_OPERAND_LEVELS entries must be q|k|p|v=123|12|13, got {_entry!r}"
+        )
+    HIF4_ATTN_OPERAND_SCALE_LEVELS[_operand] = _value
 
 HIF4_REFERENCE_REPOSITORY = (
     "https://github.com/GCC-HiFloat/HiFloat4-Quantization_Library.git"
@@ -55,16 +88,19 @@ def _round_to_bfloat16(x: torch.Tensor) -> torch.Tensor:
     return x.to(torch.bfloat16).to(x.dtype)
 
 
-def _e6m2_scale(maximum: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-    """Convert ``maximum / 7`` to the official E6M2 base scale.
+def _e6m2_scale(
+    maximum: torch.Tensor, *, divisor: float = 7.0
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Convert ``maximum / divisor`` to the official E6M2 base scale.
 
     This follows ``quant_cy/base/QFuncs/hifx.py`` from the pinned
     GCC-HiFloat reference implementation, including its BF16 multiply and
-    reciprocal rounding stages.
+    reciprocal rounding stages. The official format divides by 7; the
+    two-level variants divide by 3.5.
     """
 
-    reciprocal_seven = _round_to_bfloat16(torch.ones_like(maximum) / 7.0)
-    scale = _round_to_bfloat16(maximum * reciprocal_seven)
+    reciprocal_divisor = _round_to_bfloat16(torch.ones_like(maximum) / divisor)
+    scale = _round_to_bfloat16(maximum * reciprocal_divisor)
     scale = scale.clamp(min=2.0**-48, max=49152.0)
 
     # Match the reference's explicit BF16 round-to-nearest-even operation
@@ -109,8 +145,11 @@ def fit_hif4_compact_parameters(
     *,
     max_scale: torch.Tensor | float = 1.0,
     scale_steps: torch.Tensor | float = 0.0,
+    levels: str | None = None,
 ) -> CompactHiF4Parameters:
     """Fit compact HiF4 metadata for tensors whose final axis is exactly 64.
+
+    ``levels`` defaults to the weight variant, ``HIF4_SCALE_LEVELS``.
 
     ``max_scale`` shrinks the block maximum the scale is derived from, and
     ``scale_steps`` moves the fitted scale along the E6M2 grid. Both trade
@@ -149,7 +188,8 @@ def fit_hif4_compact_parameters(
     if bool((max_scale != 1.0).any()):
         maximum_lv1 = maximum_lv1 * max_scale
 
-    scale, reciprocal = _e6m2_scale(maximum_lv1)
+    levels = levels or HIF4_SCALE_LEVELS
+    scale, reciprocal = _e6m2_scale(maximum_lv1, divisor=7.0 if levels == "123" else 3.5)
     if not isinstance(scale_steps, torch.Tensor):
         scale_steps = torch.as_tensor(
             scale_steps, device=scale.device, dtype=scale.dtype
@@ -157,13 +197,20 @@ def fit_hif4_compact_parameters(
     if bool((scale_steps != 0.0).any()):
         scale = _step_e6m2_scale(scale, scale_steps)
         reciprocal = _round_to_bfloat16(1.0 / scale)
-    scale_lv2_exponent = torch.floor(
-        (maximum_lv2 * reciprocal).clamp(0.0, 4.0) / 4.0
-    )
-    scale_lv2 = torch.exp2(scale_lv2_exponent)
-    scale_lv3_exponent = torch.floor(
-        (maximum_lv3 * reciprocal / scale_lv2).clamp(0.0, 2.0) / 2.0
-    )
+    if levels == "123":
+        scale_lv2_exponent = torch.floor(
+            (maximum_lv2 * reciprocal).clamp(0.0, 4.0) / 4.0
+        )
+        scale_lv2 = torch.exp2(scale_lv2_exponent)
+        scale_lv3_exponent = torch.floor(
+            (maximum_lv3 * reciprocal / scale_lv2).clamp(0.0, 2.0) / 2.0
+        )
+    elif levels == "12":
+        scale_lv2_exponent = torch.floor((maximum_lv2 * reciprocal).clamp(0.0, 2.0) / 2.0)
+        scale_lv3_exponent = torch.zeros_like(maximum_lv3)
+    else:
+        scale_lv2_exponent = torch.zeros_like(maximum_lv2)
+        scale_lv3_exponent = torch.floor((maximum_lv3 * reciprocal).clamp(0.0, 2.0) / 2.0)
     return CompactHiF4Parameters(
         scale=scale,
         reciprocal=reciprocal,
@@ -197,10 +244,10 @@ def expand_hif4_parameters(
 
 
 @torch.no_grad()
-def fit_hif4_parameters(blocks: torch.Tensor) -> HiF4Parameters:
+def fit_hif4_parameters(blocks: torch.Tensor, *, levels: str | None = None) -> HiF4Parameters:
     """Fit expanded HiF4 metadata for backward-compatible GPTQ callers."""
 
-    compact = fit_hif4_compact_parameters(blocks)
+    compact = fit_hif4_compact_parameters(blocks, levels=levels)
     return expand_hif4_parameters(compact, block_shape=blocks.shape)
 
 
@@ -327,15 +374,16 @@ def fit_hif4_compact_parameters_for_axis(x: torch.Tensor) -> CompactHiF4Paramete
 
 
 @torch.no_grad()
-def fake_quantize_hif4(x: torch.Tensor) -> torch.Tensor:
+def fake_quantize_hif4(x: torch.Tensor, *, levels: str | None = None) -> torch.Tensor:
     """Official HiF4 direct-cast fake quantization along the final axis.
 
     HiF4 always uses groups of 64. A short final group is zero-padded exactly
     like the upstream ``quant_dequant_float`` helper and sliced back afterward.
+    ``levels`` defaults to the direct-cast variant, ``HIF4_ACT_SCALE_LEVELS``.
     """
 
     grouped, original_size = _group_for_hif4(x, what="fake quantization")
-    parameters = fit_hif4_parameters(grouped)
+    parameters = fit_hif4_parameters(grouped, levels=levels or HIF4_ACT_SCALE_LEVELS)
     output = quantize_hif4_with_parameters(grouped, parameters).reshape(
         *grouped.shape[:-2], -1
     )

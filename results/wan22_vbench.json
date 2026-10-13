@@ -1,0 +1,4083 @@
+{
+  "model": "Wan-AI/Wan2.2-T2V-A14B",
+  "protocol": {
+    "wan_code_commit": "81e6735",
+    "vbench_commit": "45e79ec",
+    "prompt_suite": "VBench standard, VBench_full_info.json (946 prompts, 16 dimensions)",
+    "resolution": "1280x720",
+    "frames": 81,
+    "fps": 16,
+    "sampler": "UniPC",
+    "sampling_steps": 40,
+    "shift": 12.0,
+    "guide_scale_low_high": [
+      3.0,
+      4.0
+    ],
+    "prompt_extension": false,
+    "dit_parameters": "bfloat16",
+    "seed": "per video, from the prompt and the sample index (faquant.wan22_suite.video_seed)",
+    "evaluation": "evaluate.py --mode vbench_standard --load_ckpt_from_local True; temporal flickering on the static-filtered videos; Total = (4 Quality + Semantic) / 5 after VBench's min-max normalization",
+    "paired_comparison": "same prompt and seed; 95% interval from a bootstrap over prompts"
+  },
+  "leaderboard_wo_prompt_extension": {
+    "subject_consistency": 97.46,
+    "background_consistency": 96.67,
+    "temporal_flickering": 98.92,
+    "motion_smoothness": 97.93,
+    "dynamic_degree": 68.24,
+    "aesthetic_quality": 63.52,
+    "imaging_quality": 71.69,
+    "object_class": 85.04,
+    "multiple_objects": 74.61,
+    "human_action": 83.4,
+    "color": 88.93,
+    "spatial_relationship": 80.22,
+    "scene": 34.38,
+    "appearance_style": 20.27,
+    "temporal_style": 23.13,
+    "overall_consistency": 24.68,
+    "quality_score": 85.03,
+    "semantic_score": 72.92,
+    "total_score": 82.61
+  },
+  "runs": {
+    "bf16": {
+      "description": "BF16 baseline",
+      "results": {
+        "samples_0": {
+          "samples_per_prompt": [
+            0
+          ],
+          "subject_consistency": 94.3485,
+          "background_consistency": 95.7136,
+          "temporal_flickering": 98.6401,
+          "motion_smoothness": 97.7055,
+          "dynamic_degree": 70.8333,
+          "aesthetic_quality": 66.4223,
+          "imaging_quality": 70.8175,
+          "object_class": 81.0918,
+          "multiple_objects": 72.7896,
+          "human_action": 83.0,
+          "color": 91.1192,
+          "spatial_relationship": 80.6974,
+          "scene": 35.4651,
+          "temporal_style": 23.1504,
+          "appearance_style": 20.231,
+          "overall_consistency": 25.1358,
+          "quality": 84.5463,
+          "semantic": 72.8063,
+          "total": 82.1983
+        },
+        "samples_0-1": {
+          "samples_per_prompt": [
+            0,
+            1
+          ],
+          "subject_consistency": 94.5885,
+          "background_consistency": 95.9101,
+          "temporal_flickering": 98.7469,
+          "motion_smoothness": 97.643,
+          "dynamic_degree": 70.1389,
+          "aesthetic_quality": 66.2764,
+          "imaging_quality": 70.6013,
+          "object_class": 83.4652,
+          "multiple_objects": 72.8277,
+          "human_action": 83.5,
+          "color": 90.4288,
+          "spatial_relationship": 78.7249,
+          "scene": 33.3576,
+          "temporal_style": 23.3526,
+          "appearance_style": 20.1642,
+          "overall_consistency": 24.9754,
+          "quality": 84.5327,
+          "semantic": 72.5357,
+          "total": 82.1333
+        }
+      }
+    },
+    "vbench_team_videos": {
+      "description": "Videos published by the VBench team for this leaderboard entry, evaluated with this pipeline",
+      "results": {
+        "samples_0-4": {
+          "samples_per_prompt": "samples 0-4 (all published videos)",
+          "subject_consistency": 94.6523,
+          "background_consistency": 95.5518,
+          "temporal_flickering": 98.6963,
+          "motion_smoothness": 97.806,
+          "dynamic_degree": 70.2778,
+          "aesthetic_quality": 66.1921,
+          "imaging_quality": 71.1758,
+          "object_class": 84.3038,
+          "multiple_objects": 73.9634,
+          "human_action": 83.4,
+          "color": 88.8868,
+          "spatial_relationship": 79.6378,
+          "scene": 32.8924,
+          "temporal_style": 23.092,
+          "appearance_style": 20.2227,
+          "overall_consistency": 24.6861,
+          "quality": 84.6207,
+          "semantic": 72.4662,
+          "total": 82.1898,
+          "videos_missing": 1500
+        },
+        "samples_0": {
+          "samples_per_prompt": [
+            0
+          ],
+          "subject_consistency": 94.868,
+          "background_consistency": 96.3369,
+          "temporal_flickering": 98.3863,
+          "motion_smoothness": 97.9296,
+          "dynamic_degree": 70.8333,
+          "aesthetic_quality": 65.7518,
+          "imaging_quality": 71.8504,
+          "object_class": 84.1772,
+          "multiple_objects": 69.8171,
+          "human_action": 83.0,
+          "color": 88.9899,
+          "spatial_relationship": 77.9573,
+          "scene": 30.2326,
+          "temporal_style": 23.549,
+          "appearance_style": 19.6331,
+          "overall_consistency": 24.5177,
+          "quality": 84.8384,
+          "semantic": 71.2702,
+          "total": 82.1248
+        }
+      }
+    },
+    "hisqrot4_linear": {
+      "description": "HiSQRot4 release (SmoothQuant + 1024-block rotation + clipping)",
+      "quantized_matmuls": "DiT block Linears (W4A4)",
+      "worker_args": "--quant hisqrot4 --hisqrot4-artifacts ARTIFACTS --convert-model-dtype 1",
+      "results": {
+        "samples_0": {
+          "samples_per_prompt": [
+            0
+          ],
+          "subject_consistency": 94.7041,
+          "background_consistency": 95.7983,
+          "temporal_flickering": 98.6408,
+          "motion_smoothness": 97.8471,
+          "dynamic_degree": 66.6667,
+          "aesthetic_quality": 65.5056,
+          "imaging_quality": 71.3005,
+          "object_class": 79.193,
+          "multiple_objects": 70.6555,
+          "human_action": 83.0,
+          "color": 91.9464,
+          "spatial_relationship": 77.4207,
+          "scene": 32.1948,
+          "temporal_style": 23.437,
+          "appearance_style": 19.9792,
+          "overall_consistency": 25.1587,
+          "quality": 84.3158,
+          "semantic": 71.6403,
+          "total": 81.7807
+        },
+        "samples_0-1": {
+          "samples_per_prompt": [
+            0,
+            1
+          ],
+          "subject_consistency": 94.4641,
+          "background_consistency": 96.07,
+          "temporal_flickering": 98.6924,
+          "motion_smoothness": 97.6608,
+          "dynamic_degree": 70.1389,
+          "aesthetic_quality": 65.2002,
+          "imaging_quality": 70.9019,
+          "object_class": 83.0301,
+          "multiple_objects": 69.5503,
+          "human_action": 83.0,
+          "color": 91.0411,
+          "spatial_relationship": 78.7356,
+          "scene": 32.8488,
+          "temporal_style": 23.2996,
+          "appearance_style": 20.1545,
+          "overall_consistency": 25.176,
+          "quality": 84.411,
+          "semantic": 72.1094,
+          "total": 81.9507
+        }
+      }
+    },
+    "hif4_linear": {
+      "description": "Plain HiF4, weights RTN",
+      "quantized_matmuls": "DiT block Linears (W4A4)",
+      "worker_args": "--quant hif4 --hif4-levels 123 --hif4-input-backend quant_cy --convert-model-dtype 1",
+      "results": {
+        "samples_0": {
+          "samples_per_prompt": [
+            0
+          ],
+          "subject_consistency": 94.0738,
+          "background_consistency": 95.7909,
+          "temporal_flickering": 98.6179,
+          "motion_smoothness": 97.8964,
+          "dynamic_degree": 69.4444,
+          "aesthetic_quality": 64.4323,
+          "imaging_quality": 70.4575,
+          "object_class": 78.7975,
+          "multiple_objects": 65.625,
+          "human_action": 83.0,
+          "color": 91.6374,
+          "spatial_relationship": 72.6726,
+          "scene": 37.718,
+          "temporal_style": 23.6046,
+          "appearance_style": 20.2128,
+          "overall_consistency": 24.9083,
+          "quality": 84.1361,
+          "semantic": 71.2877,
+          "total": 81.5664
+        },
+        "samples_0-1": {
+          "samples_per_prompt": [
+            0,
+            1
+          ],
+          "subject_consistency": 93.9573,
+          "background_consistency": 96.1181,
+          "temporal_flickering": 98.6935,
+          "motion_smoothness": 97.7697,
+          "dynamic_degree": 71.5278,
+          "aesthetic_quality": 64.4421,
+          "imaging_quality": 70.2602,
+          "object_class": 82.318,
+          "multiple_objects": 70.0457,
+          "human_action": 84.0,
+          "color": 91.9175,
+          "spatial_relationship": 76.3776,
+          "scene": 34.6294,
+          "temporal_style": 23.5825,
+          "appearance_style": 20.2323,
+          "overall_consistency": 24.9271,
+          "quality": 84.2791,
+          "semantic": 72.3132,
+          "total": 81.8859
+        }
+      }
+    },
+    "hif4_qkpv": {
+      "description": "Plain HiF4 + HiF4 QK/PV",
+      "quantized_matmuls": "DiT block Linears (W4A4) + attention QK^T and PV",
+      "worker_args": "--quant hif4 --hif4-levels 123 --hif4-input-backend quant_cy --hif4-attention qkpv --convert-model-dtype 1",
+      "results": {
+        "samples_0": {
+          "samples_per_prompt": [
+            0
+          ],
+          "subject_consistency": 92.7534,
+          "background_consistency": 94.3344,
+          "temporal_flickering": 98.3308,
+          "motion_smoothness": 97.7855,
+          "dynamic_degree": 62.5,
+          "aesthetic_quality": 58.4096,
+          "imaging_quality": 67.3431,
+          "object_class": 70.3323,
+          "multiple_objects": 52.5915,
+          "human_action": 82.0,
+          "color": 88.0174,
+          "spatial_relationship": 71.874,
+          "scene": 26.2355,
+          "temporal_style": 22.8469,
+          "appearance_style": 20.3362,
+          "overall_consistency": 24.6035,
+          "quality": 81.4771,
+          "semantic": 66.469,
+          "total": 78.4755
+        }
+      }
+    },
+    "hisqrot4_qkpv": {
+      "description": "HiSQRot4 + HiF4 QK/PV",
+      "quantized_matmuls": "DiT block Linears (W4A4) + attention QK^T and PV",
+      "worker_args": "--quant hisqrot4 --hisqrot4-artifacts ARTIFACTS --convert-model-dtype 1 --hif4-attention qkpv",
+      "results": {
+        "samples_0": {
+          "samples_per_prompt": [
+            0
+          ],
+          "subject_consistency": 92.8147,
+          "background_consistency": 94.6474,
+          "temporal_flickering": 98.2406,
+          "motion_smoothness": 97.7649,
+          "dynamic_degree": 59.7222,
+          "aesthetic_quality": 59.3304,
+          "imaging_quality": 68.0128,
+          "object_class": 72.4684,
+          "multiple_objects": 59.0701,
+          "human_action": 81.0,
+          "color": 84.647,
+          "spatial_relationship": 70.6241,
+          "scene": 32.2674,
+          "temporal_style": 22.9704,
+          "appearance_style": 20.6552,
+          "overall_consistency": 24.8423,
+          "quality": 81.5361,
+          "semantic": 67.852,
+          "total": 78.7993
+        }
+      }
+    },
+    "recipe_a": {
+      "description": "A: plain HiF4 + HiF4 QK/PV + post-RoPE Q/K Hadamard + P-Reordering",
+      "quantized_matmuls": "DiT block Linears (W4A4) + attention QK^T and PV",
+      "worker_args": "--quant hif4 --hif4-levels 123 --hif4-input-backend quant_cy --hif4-attention qkpv --hif4-pv-normalizer quantized --hif4-qk-rotation --convert-model-dtype 1",
+      "results": {
+        "samples_0": {
+          "samples_per_prompt": [
+            0
+          ],
+          "subject_consistency": 94.1605,
+          "background_consistency": 95.4923,
+          "temporal_flickering": 98.6227,
+          "motion_smoothness": 97.8866,
+          "dynamic_degree": 72.2222,
+          "aesthetic_quality": 63.8315,
+          "imaging_quality": 70.3559,
+          "object_class": 77.9272,
+          "multiple_objects": 69.8171,
+          "human_action": 82.0,
+          "color": 87.983,
+          "spatial_relationship": 71.4117,
+          "scene": 37.8634,
+          "temporal_style": 23.7395,
+          "appearance_style": 20.447,
+          "overall_consistency": 25.0902,
+          "quality": 84.1919,
+          "semantic": 71.2073,
+          "total": 81.595
+        }
+      }
+    },
+    "recipe_a_smooth_qk": {
+      "description": "A + Smooth-QK",
+      "quantized_matmuls": "DiT block Linears (W4A4) + attention QK^T and PV",
+      "worker_args": "--quant hif4 --hif4-levels 123 --hif4-input-backend quant_cy --hif4-attention qkpv --hif4-pv-normalizer quantized --hif4-qk-rotation --convert-model-dtype 1 --hif4-qk-smooth QK_SMOOTH",
+      "results": {
+        "samples_0": {
+          "samples_per_prompt": [
+            0
+          ],
+          "subject_consistency": 94.7195,
+          "background_consistency": 95.5669,
+          "temporal_flickering": 98.5797,
+          "motion_smoothness": 97.8399,
+          "dynamic_degree": 68.0556,
+          "aesthetic_quality": 63.9719,
+          "imaging_quality": 70.2209,
+          "object_class": 77.057,
+          "multiple_objects": 64.5579,
+          "human_action": 81.0,
+          "color": 91.2684,
+          "spatial_relationship": 71.4305,
+          "scene": 37.2093,
+          "temporal_style": 23.4549,
+          "appearance_style": 20.448,
+          "overall_consistency": 24.9295,
+          "quality": 83.946,
+          "semantic": 70.5584,
+          "total": 81.2685
+        }
+      }
+    },
+    "recipe_a_vo_hadamard": {
+      "description": "A + V/O per-head Hadamard",
+      "quantized_matmuls": "DiT block Linears (W4A4) + attention QK^T and PV",
+      "worker_args": "--quant hif4 --hif4-levels 123 --hif4-input-backend quant_cy --hif4-attention qkpv --hif4-pv-normalizer quantized --hif4-qk-rotation --convert-model-dtype 1 --hif4-vo-rotation",
+      "results": {
+        "samples_0": {
+          "samples_per_prompt": [
+            0
+          ],
+          "subject_consistency": 94.723,
+          "background_consistency": 95.5438,
+          "temporal_flickering": 98.6659,
+          "motion_smoothness": 97.8838,
+          "dynamic_degree": 72.2222,
+          "aesthetic_quality": 63.7469,
+          "imaging_quality": 70.2213,
+          "object_class": 78.5601,
+          "multiple_objects": 67.5305,
+          "human_action": 80.0,
+          "color": 91.4179,
+          "spatial_relationship": 72.0241,
+          "scene": 35.2471,
+          "temporal_style": 23.4706,
+          "appearance_style": 20.3685,
+          "overall_consistency": 24.7979,
+          "quality": 84.2867,
+          "semantic": 70.6956,
+          "total": 81.5685
+        }
+      }
+    },
+    "recipe_a_gptq": {
+      "description": "A + GPTQ Linear weights",
+      "quantized_matmuls": "DiT block Linears (W4A4) + attention QK^T and PV",
+      "worker_args": "--quant hif4 --hif4-levels 123 --hif4-input-backend quant_cy --hif4-attention qkpv --hif4-pv-normalizer quantized --hif4-qk-rotation --convert-model-dtype 1 --hif4-weights WEIGHTS",
+      "results": {
+        "samples_0": {
+          "samples_per_prompt": [
+            0
+          ],
+          "subject_consistency": 95.014,
+          "background_consistency": 95.4307,
+          "temporal_flickering": 98.4477,
+          "motion_smoothness": 97.7929,
+          "dynamic_degree": 70.8333,
+          "aesthetic_quality": 64.5092,
+          "imaging_quality": 70.3448,
+          "object_class": 77.3734,
+          "multiple_objects": 67.8354,
+          "human_action": 84.0,
+          "color": 90.7212,
+          "spatial_relationship": 71.1814,
+          "scene": 39.5349,
+          "temporal_style": 23.5271,
+          "appearance_style": 20.2882,
+          "overall_consistency": 24.9238,
+          "quality": 84.2065,
+          "semantic": 71.4748,
+          "total": 81.6602
+        }
+      }
+    },
+    "hisqrot4_qkpv_qk_hadamard_p_reordering": {
+      "description": "E: HiSQRot4 + HiF4 QK/PV + post-RoPE Q/K Hadamard + P-Reordering",
+      "quantized_matmuls": "DiT block Linears (W4A4) + attention QK^T and PV",
+      "worker_args": "--quant hisqrot4 --hisqrot4-artifacts ARTIFACTS --convert-model-dtype 1 --hif4-attention qkpv --hif4-pv-normalizer quantized --hif4-qk-rotation",
+      "results": {
+        "samples_0": {
+          "samples_per_prompt": [
+            0
+          ],
+          "subject_consistency": 95.0628,
+          "background_consistency": 95.4899,
+          "temporal_flickering": 98.7121,
+          "motion_smoothness": 97.9295,
+          "dynamic_degree": 69.4444,
+          "aesthetic_quality": 64.3662,
+          "imaging_quality": 70.9089,
+          "object_class": 74.9209,
+          "multiple_objects": 72.1799,
+          "human_action": 84.0,
+          "color": 86.863,
+          "spatial_relationship": 72.061,
+          "scene": 35.9012,
+          "temporal_style": 23.1258,
+          "appearance_style": 20.4098,
+          "overall_consistency": 25.1137,
+          "quality": 84.3674,
+          "semantic": 70.8459,
+          "total": 81.6631
+        }
+      }
+    }
+  },
+  "paired_comparisons": {
+    "bf16_vs_vbench_team_videos_samples_0": {
+      "candidate": "bf16",
+      "reference": "vbench_team_videos",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 82.1248,
+        "candidate": 82.1983,
+        "gap": -0.0735,
+        "ci95": [
+          -1.2147,
+          0.6739
+        ]
+      },
+      "quality": {
+        "reference": 84.8384,
+        "candidate": 84.5463,
+        "gap": 0.2921,
+        "ci95": [
+          -0.9068,
+          1.1565
+        ]
+      },
+      "semantic": {
+        "reference": 71.2702,
+        "candidate": 72.8063,
+        "gap": -1.5361,
+        "ci95": [
+          -4.1484,
+          0.7096
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 94.868,
+          "candidate": 94.3485,
+          "gap": 0.5195
+        },
+        "background_consistency": {
+          "reference": 96.3369,
+          "candidate": 95.7136,
+          "gap": 0.6233
+        },
+        "temporal_flickering": {
+          "reference": 98.3863,
+          "candidate": 98.6401,
+          "gap": -0.2538
+        },
+        "motion_smoothness": {
+          "reference": 97.9296,
+          "candidate": 97.7055,
+          "gap": 0.2241
+        },
+        "dynamic_degree": {
+          "reference": 70.8333,
+          "candidate": 70.8333,
+          "gap": 0.0
+        },
+        "aesthetic_quality": {
+          "reference": 65.7518,
+          "candidate": 66.4223,
+          "gap": -0.6705
+        },
+        "imaging_quality": {
+          "reference": 71.8504,
+          "candidate": 70.8175,
+          "gap": 1.0329
+        },
+        "object_class": {
+          "reference": 84.1772,
+          "candidate": 81.0918,
+          "gap": 3.0854
+        },
+        "multiple_objects": {
+          "reference": 69.8171,
+          "candidate": 72.7896,
+          "gap": -2.9725
+        },
+        "human_action": {
+          "reference": 83.0,
+          "candidate": 83.0,
+          "gap": 0.0
+        },
+        "color": {
+          "reference": 88.9899,
+          "candidate": 91.1192,
+          "gap": -2.1293
+        },
+        "spatial_relationship": {
+          "reference": 77.9573,
+          "candidate": 80.6974,
+          "gap": -2.7401
+        },
+        "scene": {
+          "reference": 30.2326,
+          "candidate": 35.4651,
+          "gap": -5.2325
+        },
+        "temporal_style": {
+          "reference": 23.549,
+          "candidate": 23.1504,
+          "gap": 0.3986
+        },
+        "appearance_style": {
+          "reference": 19.6331,
+          "candidate": 20.231,
+          "gap": -0.5979
+        },
+        "overall_consistency": {
+          "reference": 24.5177,
+          "candidate": 25.1358,
+          "gap": -0.6181
+        }
+      }
+    },
+    "hif4_linear_vs_bf16_samples_0-1": {
+      "candidate": "hif4_linear",
+      "reference": "bf16",
+      "samples_per_prompt": [
+        0,
+        1
+      ],
+      "total": {
+        "reference": 82.1333,
+        "candidate": 81.8859,
+        "gap": 0.2474,
+        "ci95": [
+          -0.2273,
+          0.7756
+        ]
+      },
+      "quality": {
+        "reference": 84.5327,
+        "candidate": 84.2791,
+        "gap": 0.2536,
+        "ci95": [
+          -0.2482,
+          0.7805
+        ]
+      },
+      "semantic": {
+        "reference": 72.5357,
+        "candidate": 72.3132,
+        "gap": 0.2225,
+        "ci95": [
+          -1.1549,
+          1.6426
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 94.5885,
+          "candidate": 93.9573,
+          "gap": 0.6312
+        },
+        "background_consistency": {
+          "reference": 95.9101,
+          "candidate": 96.1181,
+          "gap": -0.208
+        },
+        "temporal_flickering": {
+          "reference": 98.7469,
+          "candidate": 98.6935,
+          "gap": 0.0534
+        },
+        "motion_smoothness": {
+          "reference": 97.643,
+          "candidate": 97.7697,
+          "gap": -0.1267
+        },
+        "dynamic_degree": {
+          "reference": 70.1389,
+          "candidate": 71.5278,
+          "gap": -1.3889
+        },
+        "aesthetic_quality": {
+          "reference": 66.2764,
+          "candidate": 64.4421,
+          "gap": 1.8343
+        },
+        "imaging_quality": {
+          "reference": 70.6013,
+          "candidate": 70.2602,
+          "gap": 0.3411
+        },
+        "object_class": {
+          "reference": 83.4652,
+          "candidate": 82.318,
+          "gap": 1.1472
+        },
+        "multiple_objects": {
+          "reference": 72.8277,
+          "candidate": 70.0457,
+          "gap": 2.782
+        },
+        "human_action": {
+          "reference": 83.5,
+          "candidate": 84.0,
+          "gap": -0.5
+        },
+        "color": {
+          "reference": 90.4288,
+          "candidate": 91.9175,
+          "gap": -1.4887
+        },
+        "spatial_relationship": {
+          "reference": 78.7249,
+          "candidate": 76.3776,
+          "gap": 2.3473
+        },
+        "scene": {
+          "reference": 33.3576,
+          "candidate": 34.6294,
+          "gap": -1.2718
+        },
+        "temporal_style": {
+          "reference": 23.3526,
+          "candidate": 23.5825,
+          "gap": -0.2299
+        },
+        "appearance_style": {
+          "reference": 20.1642,
+          "candidate": 20.2323,
+          "gap": -0.0681
+        },
+        "overall_consistency": {
+          "reference": 24.9754,
+          "candidate": 24.9271,
+          "gap": 0.0483
+        }
+      }
+    },
+    "hif4_linear_vs_bf16_samples_0": {
+      "candidate": "hif4_linear",
+      "reference": "bf16",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 82.1983,
+        "candidate": 81.5664,
+        "gap": 0.6319,
+        "ci95": [
+          -0.0378,
+          1.3177
+        ]
+      },
+      "quality": {
+        "reference": 84.5463,
+        "candidate": 84.1361,
+        "gap": 0.4102,
+        "ci95": [
+          -0.2282,
+          1.1552
+        ]
+      },
+      "semantic": {
+        "reference": 72.8063,
+        "candidate": 71.2877,
+        "gap": 1.5186,
+        "ci95": [
+          -0.6499,
+          3.3807
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 94.3485,
+          "candidate": 94.0738,
+          "gap": 0.2747
+        },
+        "background_consistency": {
+          "reference": 95.7136,
+          "candidate": 95.7909,
+          "gap": -0.0773
+        },
+        "temporal_flickering": {
+          "reference": 98.6401,
+          "candidate": 98.6179,
+          "gap": 0.0222
+        },
+        "motion_smoothness": {
+          "reference": 97.7055,
+          "candidate": 97.8964,
+          "gap": -0.1909
+        },
+        "dynamic_degree": {
+          "reference": 70.8333,
+          "candidate": 69.4444,
+          "gap": 1.3889
+        },
+        "aesthetic_quality": {
+          "reference": 66.4223,
+          "candidate": 64.4323,
+          "gap": 1.99
+        },
+        "imaging_quality": {
+          "reference": 70.8175,
+          "candidate": 70.4575,
+          "gap": 0.36
+        },
+        "object_class": {
+          "reference": 81.0918,
+          "candidate": 78.7975,
+          "gap": 2.2943
+        },
+        "multiple_objects": {
+          "reference": 72.7896,
+          "candidate": 65.625,
+          "gap": 7.1646
+        },
+        "human_action": {
+          "reference": 83.0,
+          "candidate": 83.0,
+          "gap": 0.0
+        },
+        "color": {
+          "reference": 91.1192,
+          "candidate": 91.6374,
+          "gap": -0.5182
+        },
+        "spatial_relationship": {
+          "reference": 80.6974,
+          "candidate": 72.6726,
+          "gap": 8.0248
+        },
+        "scene": {
+          "reference": 35.4651,
+          "candidate": 37.718,
+          "gap": -2.2529
+        },
+        "temporal_style": {
+          "reference": 23.1504,
+          "candidate": 23.6046,
+          "gap": -0.4542
+        },
+        "appearance_style": {
+          "reference": 20.231,
+          "candidate": 20.2128,
+          "gap": 0.0182
+        },
+        "overall_consistency": {
+          "reference": 25.1358,
+          "candidate": 24.9083,
+          "gap": 0.2275
+        }
+      }
+    },
+    "hif4_linear_vs_hisqrot4_linear_samples_0-1": {
+      "candidate": "hif4_linear",
+      "reference": "hisqrot4_linear",
+      "samples_per_prompt": [
+        0,
+        1
+      ],
+      "total": {
+        "reference": 81.9507,
+        "candidate": 81.8859,
+        "gap": 0.0648,
+        "ci95": [
+          -0.4064,
+          0.5169
+        ]
+      },
+      "quality": {
+        "reference": 84.411,
+        "candidate": 84.2791,
+        "gap": 0.1319,
+        "ci95": [
+          -0.3615,
+          0.5915
+        ]
+      },
+      "semantic": {
+        "reference": 72.1094,
+        "candidate": 72.3132,
+        "gap": -0.2038,
+        "ci95": [
+          -1.386,
+          1.0167
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 94.4641,
+          "candidate": 93.9573,
+          "gap": 0.5068
+        },
+        "background_consistency": {
+          "reference": 96.07,
+          "candidate": 96.1181,
+          "gap": -0.0481
+        },
+        "temporal_flickering": {
+          "reference": 98.6924,
+          "candidate": 98.6935,
+          "gap": -0.0011
+        },
+        "motion_smoothness": {
+          "reference": 97.6608,
+          "candidate": 97.7697,
+          "gap": -0.1089
+        },
+        "dynamic_degree": {
+          "reference": 70.1389,
+          "candidate": 71.5278,
+          "gap": -1.3889
+        },
+        "aesthetic_quality": {
+          "reference": 65.2002,
+          "candidate": 64.4421,
+          "gap": 0.7581
+        },
+        "imaging_quality": {
+          "reference": 70.9019,
+          "candidate": 70.2602,
+          "gap": 0.6417
+        },
+        "object_class": {
+          "reference": 83.0301,
+          "candidate": 82.318,
+          "gap": 0.7121
+        },
+        "multiple_objects": {
+          "reference": 69.5503,
+          "candidate": 70.0457,
+          "gap": -0.4954
+        },
+        "human_action": {
+          "reference": 83.0,
+          "candidate": 84.0,
+          "gap": -1.0
+        },
+        "color": {
+          "reference": 91.0411,
+          "candidate": 91.9175,
+          "gap": -0.8764
+        },
+        "spatial_relationship": {
+          "reference": 78.7356,
+          "candidate": 76.3776,
+          "gap": 2.358
+        },
+        "scene": {
+          "reference": 32.8488,
+          "candidate": 34.6294,
+          "gap": -1.7806
+        },
+        "temporal_style": {
+          "reference": 23.2996,
+          "candidate": 23.5825,
+          "gap": -0.2829
+        },
+        "appearance_style": {
+          "reference": 20.1545,
+          "candidate": 20.2323,
+          "gap": -0.0778
+        },
+        "overall_consistency": {
+          "reference": 25.176,
+          "candidate": 24.9271,
+          "gap": 0.2489
+        }
+      }
+    },
+    "hif4_linear_vs_hisqrot4_linear_samples_0": {
+      "candidate": "hif4_linear",
+      "reference": "hisqrot4_linear",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 81.7807,
+        "candidate": 81.5664,
+        "gap": 0.2143,
+        "ci95": [
+          -0.477,
+          0.8401
+        ]
+      },
+      "quality": {
+        "reference": 84.3158,
+        "candidate": 84.1361,
+        "gap": 0.1797,
+        "ci95": [
+          -0.5428,
+          0.8656
+        ]
+      },
+      "semantic": {
+        "reference": 71.6403,
+        "candidate": 71.2877,
+        "gap": 0.3526,
+        "ci95": [
+          -1.4397,
+          1.9701
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 94.7041,
+          "candidate": 94.0738,
+          "gap": 0.6303
+        },
+        "background_consistency": {
+          "reference": 95.7983,
+          "candidate": 95.7909,
+          "gap": 0.0074
+        },
+        "temporal_flickering": {
+          "reference": 98.6408,
+          "candidate": 98.6179,
+          "gap": 0.0229
+        },
+        "motion_smoothness": {
+          "reference": 97.8471,
+          "candidate": 97.8964,
+          "gap": -0.0493
+        },
+        "dynamic_degree": {
+          "reference": 66.6667,
+          "candidate": 69.4444,
+          "gap": -2.7777
+        },
+        "aesthetic_quality": {
+          "reference": 65.5056,
+          "candidate": 64.4323,
+          "gap": 1.0733
+        },
+        "imaging_quality": {
+          "reference": 71.3005,
+          "candidate": 70.4575,
+          "gap": 0.843
+        },
+        "object_class": {
+          "reference": 79.193,
+          "candidate": 78.7975,
+          "gap": 0.3955
+        },
+        "multiple_objects": {
+          "reference": 70.6555,
+          "candidate": 65.625,
+          "gap": 5.0305
+        },
+        "human_action": {
+          "reference": 83.0,
+          "candidate": 83.0,
+          "gap": 0.0
+        },
+        "color": {
+          "reference": 91.9464,
+          "candidate": 91.6374,
+          "gap": 0.309
+        },
+        "spatial_relationship": {
+          "reference": 77.4207,
+          "candidate": 72.6726,
+          "gap": 4.7481
+        },
+        "scene": {
+          "reference": 32.1948,
+          "candidate": 37.718,
+          "gap": -5.5232
+        },
+        "temporal_style": {
+          "reference": 23.437,
+          "candidate": 23.6046,
+          "gap": -0.1676
+        },
+        "appearance_style": {
+          "reference": 19.9792,
+          "candidate": 20.2128,
+          "gap": -0.2336
+        },
+        "overall_consistency": {
+          "reference": 25.1587,
+          "candidate": 24.9083,
+          "gap": 0.2504
+        }
+      }
+    },
+    "hif4_qkpv_vs_bf16_samples_0": {
+      "candidate": "hif4_qkpv",
+      "reference": "bf16",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 82.1983,
+        "candidate": 78.4755,
+        "gap": 3.7228,
+        "ci95": [
+          2.9613,
+          4.6048
+        ]
+      },
+      "quality": {
+        "reference": 84.5463,
+        "candidate": 81.4771,
+        "gap": 3.0692,
+        "ci95": [
+          2.2367,
+          4.005
+        ]
+      },
+      "semantic": {
+        "reference": 72.8063,
+        "candidate": 66.469,
+        "gap": 6.3373,
+        "ci95": [
+          4.1376,
+          8.693
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 94.3485,
+          "candidate": 92.7534,
+          "gap": 1.5951
+        },
+        "background_consistency": {
+          "reference": 95.7136,
+          "candidate": 94.3344,
+          "gap": 1.3792
+        },
+        "temporal_flickering": {
+          "reference": 98.6401,
+          "candidate": 98.3308,
+          "gap": 0.3093
+        },
+        "motion_smoothness": {
+          "reference": 97.7055,
+          "candidate": 97.7855,
+          "gap": -0.08
+        },
+        "dynamic_degree": {
+          "reference": 70.8333,
+          "candidate": 62.5,
+          "gap": 8.3333
+        },
+        "aesthetic_quality": {
+          "reference": 66.4223,
+          "candidate": 58.4096,
+          "gap": 8.0127
+        },
+        "imaging_quality": {
+          "reference": 70.8175,
+          "candidate": 67.3431,
+          "gap": 3.4744
+        },
+        "object_class": {
+          "reference": 81.0918,
+          "candidate": 70.3323,
+          "gap": 10.7595
+        },
+        "multiple_objects": {
+          "reference": 72.7896,
+          "candidate": 52.5915,
+          "gap": 20.1981
+        },
+        "human_action": {
+          "reference": 83.0,
+          "candidate": 82.0,
+          "gap": 1.0
+        },
+        "color": {
+          "reference": 91.1192,
+          "candidate": 88.0174,
+          "gap": 3.1018
+        },
+        "spatial_relationship": {
+          "reference": 80.6974,
+          "candidate": 71.874,
+          "gap": 8.8234
+        },
+        "scene": {
+          "reference": 35.4651,
+          "candidate": 26.2355,
+          "gap": 9.2296
+        },
+        "temporal_style": {
+          "reference": 23.1504,
+          "candidate": 22.8469,
+          "gap": 0.3035
+        },
+        "appearance_style": {
+          "reference": 20.231,
+          "candidate": 20.3362,
+          "gap": -0.1052
+        },
+        "overall_consistency": {
+          "reference": 25.1358,
+          "candidate": 24.6035,
+          "gap": 0.5323
+        }
+      }
+    },
+    "hif4_qkpv_vs_hif4_linear_samples_0": {
+      "candidate": "hif4_qkpv",
+      "reference": "hif4_linear",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 81.5664,
+        "candidate": 78.4755,
+        "gap": 3.0909,
+        "ci95": [
+          2.3541,
+          3.7984
+        ]
+      },
+      "quality": {
+        "reference": 84.1361,
+        "candidate": 81.4771,
+        "gap": 2.659,
+        "ci95": [
+          1.9306,
+          3.4766
+        ]
+      },
+      "semantic": {
+        "reference": 71.2877,
+        "candidate": 66.469,
+        "gap": 4.8187,
+        "ci95": [
+          2.7382,
+          6.6974
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 94.0738,
+          "candidate": 92.7534,
+          "gap": 1.3204
+        },
+        "background_consistency": {
+          "reference": 95.7909,
+          "candidate": 94.3344,
+          "gap": 1.4565
+        },
+        "temporal_flickering": {
+          "reference": 98.6179,
+          "candidate": 98.3308,
+          "gap": 0.2871
+        },
+        "motion_smoothness": {
+          "reference": 97.8964,
+          "candidate": 97.7855,
+          "gap": 0.1109
+        },
+        "dynamic_degree": {
+          "reference": 69.4444,
+          "candidate": 62.5,
+          "gap": 6.9444
+        },
+        "aesthetic_quality": {
+          "reference": 64.4323,
+          "candidate": 58.4096,
+          "gap": 6.0227
+        },
+        "imaging_quality": {
+          "reference": 70.4575,
+          "candidate": 67.3431,
+          "gap": 3.1144
+        },
+        "object_class": {
+          "reference": 78.7975,
+          "candidate": 70.3323,
+          "gap": 8.4652
+        },
+        "multiple_objects": {
+          "reference": 65.625,
+          "candidate": 52.5915,
+          "gap": 13.0335
+        },
+        "human_action": {
+          "reference": 83.0,
+          "candidate": 82.0,
+          "gap": 1.0
+        },
+        "color": {
+          "reference": 91.6374,
+          "candidate": 88.0174,
+          "gap": 3.62
+        },
+        "spatial_relationship": {
+          "reference": 72.6726,
+          "candidate": 71.874,
+          "gap": 0.7986
+        },
+        "scene": {
+          "reference": 37.718,
+          "candidate": 26.2355,
+          "gap": 11.4825
+        },
+        "temporal_style": {
+          "reference": 23.6046,
+          "candidate": 22.8469,
+          "gap": 0.7577
+        },
+        "appearance_style": {
+          "reference": 20.2128,
+          "candidate": 20.3362,
+          "gap": -0.1234
+        },
+        "overall_consistency": {
+          "reference": 24.9083,
+          "candidate": 24.6035,
+          "gap": 0.3048
+        }
+      }
+    },
+    "hif4_qkpv_vs_hisqrot4_linear_samples_0": {
+      "candidate": "hif4_qkpv",
+      "reference": "hisqrot4_linear",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 81.7807,
+        "candidate": 78.4755,
+        "gap": 3.3052,
+        "ci95": [
+          2.5363,
+          4.0475
+        ]
+      },
+      "quality": {
+        "reference": 84.3158,
+        "candidate": 81.4771,
+        "gap": 2.8387,
+        "ci95": [
+          1.9698,
+          3.579
+        ]
+      },
+      "semantic": {
+        "reference": 71.6403,
+        "candidate": 66.469,
+        "gap": 5.1713,
+        "ci95": [
+          3.2618,
+          7.211
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 94.7041,
+          "candidate": 92.7534,
+          "gap": 1.9507
+        },
+        "background_consistency": {
+          "reference": 95.7983,
+          "candidate": 94.3344,
+          "gap": 1.4639
+        },
+        "temporal_flickering": {
+          "reference": 98.6408,
+          "candidate": 98.3308,
+          "gap": 0.31
+        },
+        "motion_smoothness": {
+          "reference": 97.8471,
+          "candidate": 97.7855,
+          "gap": 0.0616
+        },
+        "dynamic_degree": {
+          "reference": 66.6667,
+          "candidate": 62.5,
+          "gap": 4.1667
+        },
+        "aesthetic_quality": {
+          "reference": 65.5056,
+          "candidate": 58.4096,
+          "gap": 7.096
+        },
+        "imaging_quality": {
+          "reference": 71.3005,
+          "candidate": 67.3431,
+          "gap": 3.9574
+        },
+        "object_class": {
+          "reference": 79.193,
+          "candidate": 70.3323,
+          "gap": 8.8607
+        },
+        "multiple_objects": {
+          "reference": 70.6555,
+          "candidate": 52.5915,
+          "gap": 18.064
+        },
+        "human_action": {
+          "reference": 83.0,
+          "candidate": 82.0,
+          "gap": 1.0
+        },
+        "color": {
+          "reference": 91.9464,
+          "candidate": 88.0174,
+          "gap": 3.929
+        },
+        "spatial_relationship": {
+          "reference": 77.4207,
+          "candidate": 71.874,
+          "gap": 5.5467
+        },
+        "scene": {
+          "reference": 32.1948,
+          "candidate": 26.2355,
+          "gap": 5.9593
+        },
+        "temporal_style": {
+          "reference": 23.437,
+          "candidate": 22.8469,
+          "gap": 0.5901
+        },
+        "appearance_style": {
+          "reference": 19.9792,
+          "candidate": 20.3362,
+          "gap": -0.357
+        },
+        "overall_consistency": {
+          "reference": 25.1587,
+          "candidate": 24.6035,
+          "gap": 0.5552
+        }
+      }
+    },
+    "recipe_a_gptq_vs_bf16_samples_0": {
+      "candidate": "recipe_a_gptq",
+      "reference": "bf16",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 82.1983,
+        "candidate": 81.6602,
+        "gap": 0.5381,
+        "ci95": [
+          -0.123,
+          1.1938
+        ]
+      },
+      "quality": {
+        "reference": 84.5463,
+        "candidate": 84.2065,
+        "gap": 0.3398,
+        "ci95": [
+          -0.3384,
+          0.9838
+        ]
+      },
+      "semantic": {
+        "reference": 72.8063,
+        "candidate": 71.4748,
+        "gap": 1.3315,
+        "ci95": [
+          -0.5062,
+          3.0368
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 94.3485,
+          "candidate": 95.014,
+          "gap": -0.6655
+        },
+        "background_consistency": {
+          "reference": 95.7136,
+          "candidate": 95.4307,
+          "gap": 0.2829
+        },
+        "temporal_flickering": {
+          "reference": 98.6401,
+          "candidate": 98.4477,
+          "gap": 0.1924
+        },
+        "motion_smoothness": {
+          "reference": 97.7055,
+          "candidate": 97.7929,
+          "gap": -0.0874
+        },
+        "dynamic_degree": {
+          "reference": 70.8333,
+          "candidate": 70.8333,
+          "gap": 0.0
+        },
+        "aesthetic_quality": {
+          "reference": 66.4223,
+          "candidate": 64.5092,
+          "gap": 1.9131
+        },
+        "imaging_quality": {
+          "reference": 70.8175,
+          "candidate": 70.3448,
+          "gap": 0.4727
+        },
+        "object_class": {
+          "reference": 81.0918,
+          "candidate": 77.3734,
+          "gap": 3.7184
+        },
+        "multiple_objects": {
+          "reference": 72.7896,
+          "candidate": 67.8354,
+          "gap": 4.9542
+        },
+        "human_action": {
+          "reference": 83.0,
+          "candidate": 84.0,
+          "gap": -1.0
+        },
+        "color": {
+          "reference": 91.1192,
+          "candidate": 90.7212,
+          "gap": 0.398
+        },
+        "spatial_relationship": {
+          "reference": 80.6974,
+          "candidate": 71.1814,
+          "gap": 9.516
+        },
+        "scene": {
+          "reference": 35.4651,
+          "candidate": 39.5349,
+          "gap": -4.0698
+        },
+        "temporal_style": {
+          "reference": 23.1504,
+          "candidate": 23.5271,
+          "gap": -0.3767
+        },
+        "appearance_style": {
+          "reference": 20.231,
+          "candidate": 20.2882,
+          "gap": -0.0572
+        },
+        "overall_consistency": {
+          "reference": 25.1358,
+          "candidate": 24.9238,
+          "gap": 0.212
+        }
+      }
+    },
+    "recipe_a_gptq_vs_hif4_linear_samples_0": {
+      "candidate": "recipe_a_gptq",
+      "reference": "hif4_linear",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 81.5664,
+        "candidate": 81.6602,
+        "gap": -0.0938,
+        "ci95": [
+          -0.8122,
+          0.5489
+        ]
+      },
+      "quality": {
+        "reference": 84.1361,
+        "candidate": 84.2065,
+        "gap": -0.0704,
+        "ci95": [
+          -0.7647,
+          0.5907
+        ]
+      },
+      "semantic": {
+        "reference": 71.2877,
+        "candidate": 71.4748,
+        "gap": -0.1871,
+        "ci95": [
+          -2.1908,
+          1.8213
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 94.0738,
+          "candidate": 95.014,
+          "gap": -0.9402
+        },
+        "background_consistency": {
+          "reference": 95.7909,
+          "candidate": 95.4307,
+          "gap": 0.3602
+        },
+        "temporal_flickering": {
+          "reference": 98.6179,
+          "candidate": 98.4477,
+          "gap": 0.1702
+        },
+        "motion_smoothness": {
+          "reference": 97.8964,
+          "candidate": 97.7929,
+          "gap": 0.1035
+        },
+        "dynamic_degree": {
+          "reference": 69.4444,
+          "candidate": 70.8333,
+          "gap": -1.3889
+        },
+        "aesthetic_quality": {
+          "reference": 64.4323,
+          "candidate": 64.5092,
+          "gap": -0.0769
+        },
+        "imaging_quality": {
+          "reference": 70.4575,
+          "candidate": 70.3448,
+          "gap": 0.1127
+        },
+        "object_class": {
+          "reference": 78.7975,
+          "candidate": 77.3734,
+          "gap": 1.4241
+        },
+        "multiple_objects": {
+          "reference": 65.625,
+          "candidate": 67.8354,
+          "gap": -2.2104
+        },
+        "human_action": {
+          "reference": 83.0,
+          "candidate": 84.0,
+          "gap": -1.0
+        },
+        "color": {
+          "reference": 91.6374,
+          "candidate": 90.7212,
+          "gap": 0.9162
+        },
+        "spatial_relationship": {
+          "reference": 72.6726,
+          "candidate": 71.1814,
+          "gap": 1.4912
+        },
+        "scene": {
+          "reference": 37.718,
+          "candidate": 39.5349,
+          "gap": -1.8169
+        },
+        "temporal_style": {
+          "reference": 23.6046,
+          "candidate": 23.5271,
+          "gap": 0.0775
+        },
+        "appearance_style": {
+          "reference": 20.2128,
+          "candidate": 20.2882,
+          "gap": -0.0754
+        },
+        "overall_consistency": {
+          "reference": 24.9083,
+          "candidate": 24.9238,
+          "gap": -0.0155
+        }
+      }
+    },
+    "recipe_a_gptq_vs_hif4_qkpv_samples_0": {
+      "candidate": "recipe_a_gptq",
+      "reference": "hif4_qkpv",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 78.4755,
+        "candidate": 81.6602,
+        "gap": -3.1847,
+        "ci95": [
+          -3.9867,
+          -2.4442
+        ]
+      },
+      "quality": {
+        "reference": 81.4771,
+        "candidate": 84.2065,
+        "gap": -2.7294,
+        "ci95": [
+          -3.5394,
+          -1.998
+        ]
+      },
+      "semantic": {
+        "reference": 66.469,
+        "candidate": 71.4748,
+        "gap": -5.0058,
+        "ci95": [
+          -7.3452,
+          -2.735
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 92.7534,
+          "candidate": 95.014,
+          "gap": -2.2606
+        },
+        "background_consistency": {
+          "reference": 94.3344,
+          "candidate": 95.4307,
+          "gap": -1.0963
+        },
+        "temporal_flickering": {
+          "reference": 98.3308,
+          "candidate": 98.4477,
+          "gap": -0.1169
+        },
+        "motion_smoothness": {
+          "reference": 97.7855,
+          "candidate": 97.7929,
+          "gap": -0.0074
+        },
+        "dynamic_degree": {
+          "reference": 62.5,
+          "candidate": 70.8333,
+          "gap": -8.3333
+        },
+        "aesthetic_quality": {
+          "reference": 58.4096,
+          "candidate": 64.5092,
+          "gap": -6.0996
+        },
+        "imaging_quality": {
+          "reference": 67.3431,
+          "candidate": 70.3448,
+          "gap": -3.0017
+        },
+        "object_class": {
+          "reference": 70.3323,
+          "candidate": 77.3734,
+          "gap": -7.0411
+        },
+        "multiple_objects": {
+          "reference": 52.5915,
+          "candidate": 67.8354,
+          "gap": -15.2439
+        },
+        "human_action": {
+          "reference": 82.0,
+          "candidate": 84.0,
+          "gap": -2.0
+        },
+        "color": {
+          "reference": 88.0174,
+          "candidate": 90.7212,
+          "gap": -2.7038
+        },
+        "spatial_relationship": {
+          "reference": 71.874,
+          "candidate": 71.1814,
+          "gap": 0.6926
+        },
+        "scene": {
+          "reference": 26.2355,
+          "candidate": 39.5349,
+          "gap": -13.2994
+        },
+        "temporal_style": {
+          "reference": 22.8469,
+          "candidate": 23.5271,
+          "gap": -0.6802
+        },
+        "appearance_style": {
+          "reference": 20.3362,
+          "candidate": 20.2882,
+          "gap": 0.048
+        },
+        "overall_consistency": {
+          "reference": 24.6035,
+          "candidate": 24.9238,
+          "gap": -0.3203
+        }
+      }
+    },
+    "recipe_a_gptq_vs_recipe_a_samples_0": {
+      "candidate": "recipe_a_gptq",
+      "reference": "recipe_a",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 81.595,
+        "candidate": 81.6602,
+        "gap": -0.0652,
+        "ci95": [
+          -0.7369,
+          0.5413
+        ]
+      },
+      "quality": {
+        "reference": 84.1919,
+        "candidate": 84.2065,
+        "gap": -0.0146,
+        "ci95": [
+          -0.6564,
+          0.5713
+        ]
+      },
+      "semantic": {
+        "reference": 71.2073,
+        "candidate": 71.4748,
+        "gap": -0.2675,
+        "ci95": [
+          -2.1685,
+          1.642
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 94.1605,
+          "candidate": 95.014,
+          "gap": -0.8535
+        },
+        "background_consistency": {
+          "reference": 95.4923,
+          "candidate": 95.4307,
+          "gap": 0.0616
+        },
+        "temporal_flickering": {
+          "reference": 98.6227,
+          "candidate": 98.4477,
+          "gap": 0.175
+        },
+        "motion_smoothness": {
+          "reference": 97.8866,
+          "candidate": 97.7929,
+          "gap": 0.0937
+        },
+        "dynamic_degree": {
+          "reference": 72.2222,
+          "candidate": 70.8333,
+          "gap": 1.3889
+        },
+        "aesthetic_quality": {
+          "reference": 63.8315,
+          "candidate": 64.5092,
+          "gap": -0.6777
+        },
+        "imaging_quality": {
+          "reference": 70.3559,
+          "candidate": 70.3448,
+          "gap": 0.0111
+        },
+        "object_class": {
+          "reference": 77.9272,
+          "candidate": 77.3734,
+          "gap": 0.5538
+        },
+        "multiple_objects": {
+          "reference": 69.8171,
+          "candidate": 67.8354,
+          "gap": 1.9817
+        },
+        "human_action": {
+          "reference": 82.0,
+          "candidate": 84.0,
+          "gap": -2.0
+        },
+        "color": {
+          "reference": 87.983,
+          "candidate": 90.7212,
+          "gap": -2.7382
+        },
+        "spatial_relationship": {
+          "reference": 71.4117,
+          "candidate": 71.1814,
+          "gap": 0.2303
+        },
+        "scene": {
+          "reference": 37.8634,
+          "candidate": 39.5349,
+          "gap": -1.6715
+        },
+        "temporal_style": {
+          "reference": 23.7395,
+          "candidate": 23.5271,
+          "gap": 0.2124
+        },
+        "appearance_style": {
+          "reference": 20.447,
+          "candidate": 20.2882,
+          "gap": 0.1588
+        },
+        "overall_consistency": {
+          "reference": 25.0902,
+          "candidate": 24.9238,
+          "gap": 0.1664
+        }
+      }
+    },
+    "recipe_a_smooth_qk_vs_bf16_samples_0": {
+      "candidate": "recipe_a_smooth_qk",
+      "reference": "bf16",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 82.1983,
+        "candidate": 81.2685,
+        "gap": 0.9298,
+        "ci95": [
+          0.3017,
+          1.6504
+        ]
+      },
+      "quality": {
+        "reference": 84.5463,
+        "candidate": 83.946,
+        "gap": 0.6003,
+        "ci95": [
+          -0.0652,
+          1.301
+        ]
+      },
+      "semantic": {
+        "reference": 72.8063,
+        "candidate": 70.5584,
+        "gap": 2.2479,
+        "ci95": [
+          0.3755,
+          4.4253
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 94.3485,
+          "candidate": 94.7195,
+          "gap": -0.371
+        },
+        "background_consistency": {
+          "reference": 95.7136,
+          "candidate": 95.5669,
+          "gap": 0.1467
+        },
+        "temporal_flickering": {
+          "reference": 98.6401,
+          "candidate": 98.5797,
+          "gap": 0.0604
+        },
+        "motion_smoothness": {
+          "reference": 97.7055,
+          "candidate": 97.8399,
+          "gap": -0.1344
+        },
+        "dynamic_degree": {
+          "reference": 70.8333,
+          "candidate": 68.0556,
+          "gap": 2.7777
+        },
+        "aesthetic_quality": {
+          "reference": 66.4223,
+          "candidate": 63.9719,
+          "gap": 2.4504
+        },
+        "imaging_quality": {
+          "reference": 70.8175,
+          "candidate": 70.2209,
+          "gap": 0.5966
+        },
+        "object_class": {
+          "reference": 81.0918,
+          "candidate": 77.057,
+          "gap": 4.0348
+        },
+        "multiple_objects": {
+          "reference": 72.7896,
+          "candidate": 64.5579,
+          "gap": 8.2317
+        },
+        "human_action": {
+          "reference": 83.0,
+          "candidate": 81.0,
+          "gap": 2.0
+        },
+        "color": {
+          "reference": 91.1192,
+          "candidate": 91.2684,
+          "gap": -0.1492
+        },
+        "spatial_relationship": {
+          "reference": 80.6974,
+          "candidate": 71.4305,
+          "gap": 9.2669
+        },
+        "scene": {
+          "reference": 35.4651,
+          "candidate": 37.2093,
+          "gap": -1.7442
+        },
+        "temporal_style": {
+          "reference": 23.1504,
+          "candidate": 23.4549,
+          "gap": -0.3045
+        },
+        "appearance_style": {
+          "reference": 20.231,
+          "candidate": 20.448,
+          "gap": -0.217
+        },
+        "overall_consistency": {
+          "reference": 25.1358,
+          "candidate": 24.9295,
+          "gap": 0.2063
+        }
+      }
+    },
+    "recipe_a_smooth_qk_vs_hif4_qkpv_samples_0": {
+      "candidate": "recipe_a_smooth_qk",
+      "reference": "hif4_qkpv",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 78.4755,
+        "candidate": 81.2685,
+        "gap": -2.793,
+        "ci95": [
+          -3.5186,
+          -2.131
+        ]
+      },
+      "quality": {
+        "reference": 81.4771,
+        "candidate": 83.946,
+        "gap": -2.4689,
+        "ci95": [
+          -3.1938,
+          -1.844
+        ]
+      },
+      "semantic": {
+        "reference": 66.469,
+        "candidate": 70.5584,
+        "gap": -4.0894,
+        "ci95": [
+          -6.246,
+          -2.1088
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 92.7534,
+          "candidate": 94.7195,
+          "gap": -1.9661
+        },
+        "background_consistency": {
+          "reference": 94.3344,
+          "candidate": 95.5669,
+          "gap": -1.2325
+        },
+        "temporal_flickering": {
+          "reference": 98.3308,
+          "candidate": 98.5797,
+          "gap": -0.2489
+        },
+        "motion_smoothness": {
+          "reference": 97.7855,
+          "candidate": 97.8399,
+          "gap": -0.0544
+        },
+        "dynamic_degree": {
+          "reference": 62.5,
+          "candidate": 68.0556,
+          "gap": -5.5556
+        },
+        "aesthetic_quality": {
+          "reference": 58.4096,
+          "candidate": 63.9719,
+          "gap": -5.5623
+        },
+        "imaging_quality": {
+          "reference": 67.3431,
+          "candidate": 70.2209,
+          "gap": -2.8778
+        },
+        "object_class": {
+          "reference": 70.3323,
+          "candidate": 77.057,
+          "gap": -6.7247
+        },
+        "multiple_objects": {
+          "reference": 52.5915,
+          "candidate": 64.5579,
+          "gap": -11.9664
+        },
+        "human_action": {
+          "reference": 82.0,
+          "candidate": 81.0,
+          "gap": 1.0
+        },
+        "color": {
+          "reference": 88.0174,
+          "candidate": 91.2684,
+          "gap": -3.251
+        },
+        "spatial_relationship": {
+          "reference": 71.874,
+          "candidate": 71.4305,
+          "gap": 0.4435
+        },
+        "scene": {
+          "reference": 26.2355,
+          "candidate": 37.2093,
+          "gap": -10.9738
+        },
+        "temporal_style": {
+          "reference": 22.8469,
+          "candidate": 23.4549,
+          "gap": -0.608
+        },
+        "appearance_style": {
+          "reference": 20.3362,
+          "candidate": 20.448,
+          "gap": -0.1118
+        },
+        "overall_consistency": {
+          "reference": 24.6035,
+          "candidate": 24.9295,
+          "gap": -0.326
+        }
+      }
+    },
+    "recipe_a_smooth_qk_vs_recipe_a_samples_0": {
+      "candidate": "recipe_a_smooth_qk",
+      "reference": "recipe_a",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 81.595,
+        "candidate": 81.2685,
+        "gap": 0.3265,
+        "ci95": [
+          -0.1133,
+          0.7453
+        ]
+      },
+      "quality": {
+        "reference": 84.1919,
+        "candidate": 83.946,
+        "gap": 0.2459,
+        "ci95": [
+          -0.1424,
+          0.655
+        ]
+      },
+      "semantic": {
+        "reference": 71.2073,
+        "candidate": 70.5584,
+        "gap": 0.6489,
+        "ci95": [
+          -0.7996,
+          2.0154
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 94.1605,
+          "candidate": 94.7195,
+          "gap": -0.559
+        },
+        "background_consistency": {
+          "reference": 95.4923,
+          "candidate": 95.5669,
+          "gap": -0.0746
+        },
+        "temporal_flickering": {
+          "reference": 98.6227,
+          "candidate": 98.5797,
+          "gap": 0.043
+        },
+        "motion_smoothness": {
+          "reference": 97.8866,
+          "candidate": 97.8399,
+          "gap": 0.0467
+        },
+        "dynamic_degree": {
+          "reference": 72.2222,
+          "candidate": 68.0556,
+          "gap": 4.1666
+        },
+        "aesthetic_quality": {
+          "reference": 63.8315,
+          "candidate": 63.9719,
+          "gap": -0.1404
+        },
+        "imaging_quality": {
+          "reference": 70.3559,
+          "candidate": 70.2209,
+          "gap": 0.135
+        },
+        "object_class": {
+          "reference": 77.9272,
+          "candidate": 77.057,
+          "gap": 0.8702
+        },
+        "multiple_objects": {
+          "reference": 69.8171,
+          "candidate": 64.5579,
+          "gap": 5.2592
+        },
+        "human_action": {
+          "reference": 82.0,
+          "candidate": 81.0,
+          "gap": 1.0
+        },
+        "color": {
+          "reference": 87.983,
+          "candidate": 91.2684,
+          "gap": -3.2854
+        },
+        "spatial_relationship": {
+          "reference": 71.4117,
+          "candidate": 71.4305,
+          "gap": -0.0188
+        },
+        "scene": {
+          "reference": 37.8634,
+          "candidate": 37.2093,
+          "gap": 0.6541
+        },
+        "temporal_style": {
+          "reference": 23.7395,
+          "candidate": 23.4549,
+          "gap": 0.2846
+        },
+        "appearance_style": {
+          "reference": 20.447,
+          "candidate": 20.448,
+          "gap": -0.001
+        },
+        "overall_consistency": {
+          "reference": 25.0902,
+          "candidate": 24.9295,
+          "gap": 0.1607
+        }
+      }
+    },
+    "recipe_a_vo_hadamard_vs_bf16_samples_0": {
+      "candidate": "recipe_a_vo_hadamard",
+      "reference": "bf16",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 82.1983,
+        "candidate": 81.5685,
+        "gap": 0.6298,
+        "ci95": [
+          0.1206,
+          1.3837
+        ]
+      },
+      "quality": {
+        "reference": 84.5463,
+        "candidate": 84.2867,
+        "gap": 0.2596,
+        "ci95": [
+          -0.325,
+          0.9754
+        ]
+      },
+      "semantic": {
+        "reference": 72.8063,
+        "candidate": 70.6956,
+        "gap": 2.1107,
+        "ci95": [
+          0.5077,
+          4.2534
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 94.3485,
+          "candidate": 94.723,
+          "gap": -0.3745
+        },
+        "background_consistency": {
+          "reference": 95.7136,
+          "candidate": 95.5438,
+          "gap": 0.1698
+        },
+        "temporal_flickering": {
+          "reference": 98.6401,
+          "candidate": 98.6659,
+          "gap": -0.0258
+        },
+        "motion_smoothness": {
+          "reference": 97.7055,
+          "candidate": 97.8838,
+          "gap": -0.1783
+        },
+        "dynamic_degree": {
+          "reference": 70.8333,
+          "candidate": 72.2222,
+          "gap": -1.3889
+        },
+        "aesthetic_quality": {
+          "reference": 66.4223,
+          "candidate": 63.7469,
+          "gap": 2.6754
+        },
+        "imaging_quality": {
+          "reference": 70.8175,
+          "candidate": 70.2213,
+          "gap": 0.5962
+        },
+        "object_class": {
+          "reference": 81.0918,
+          "candidate": 78.5601,
+          "gap": 2.5317
+        },
+        "multiple_objects": {
+          "reference": 72.7896,
+          "candidate": 67.5305,
+          "gap": 5.2591
+        },
+        "human_action": {
+          "reference": 83.0,
+          "candidate": 80.0,
+          "gap": 3.0
+        },
+        "color": {
+          "reference": 91.1192,
+          "candidate": 91.4179,
+          "gap": -0.2987
+        },
+        "spatial_relationship": {
+          "reference": 80.6974,
+          "candidate": 72.0241,
+          "gap": 8.6733
+        },
+        "scene": {
+          "reference": 35.4651,
+          "candidate": 35.2471,
+          "gap": 0.218
+        },
+        "temporal_style": {
+          "reference": 23.1504,
+          "candidate": 23.4706,
+          "gap": -0.3202
+        },
+        "appearance_style": {
+          "reference": 20.231,
+          "candidate": 20.3685,
+          "gap": -0.1375
+        },
+        "overall_consistency": {
+          "reference": 25.1358,
+          "candidate": 24.7979,
+          "gap": 0.3379
+        }
+      }
+    },
+    "recipe_a_vo_hadamard_vs_hif4_qkpv_samples_0": {
+      "candidate": "recipe_a_vo_hadamard",
+      "reference": "hif4_qkpv",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 78.4755,
+        "candidate": 81.5685,
+        "gap": -3.093,
+        "ci95": [
+          -3.8054,
+          -2.4416
+        ]
+      },
+      "quality": {
+        "reference": 81.4771,
+        "candidate": 84.2867,
+        "gap": -2.8096,
+        "ci95": [
+          -3.4781,
+          -2.0856
+        ]
+      },
+      "semantic": {
+        "reference": 66.469,
+        "candidate": 70.6956,
+        "gap": -4.2266,
+        "ci95": [
+          -6.4653,
+          -2.4579
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 92.7534,
+          "candidate": 94.723,
+          "gap": -1.9696
+        },
+        "background_consistency": {
+          "reference": 94.3344,
+          "candidate": 95.5438,
+          "gap": -1.2094
+        },
+        "temporal_flickering": {
+          "reference": 98.3308,
+          "candidate": 98.6659,
+          "gap": -0.3351
+        },
+        "motion_smoothness": {
+          "reference": 97.7855,
+          "candidate": 97.8838,
+          "gap": -0.0983
+        },
+        "dynamic_degree": {
+          "reference": 62.5,
+          "candidate": 72.2222,
+          "gap": -9.7222
+        },
+        "aesthetic_quality": {
+          "reference": 58.4096,
+          "candidate": 63.7469,
+          "gap": -5.3373
+        },
+        "imaging_quality": {
+          "reference": 67.3431,
+          "candidate": 70.2213,
+          "gap": -2.8782
+        },
+        "object_class": {
+          "reference": 70.3323,
+          "candidate": 78.5601,
+          "gap": -8.2278
+        },
+        "multiple_objects": {
+          "reference": 52.5915,
+          "candidate": 67.5305,
+          "gap": -14.939
+        },
+        "human_action": {
+          "reference": 82.0,
+          "candidate": 80.0,
+          "gap": 2.0
+        },
+        "color": {
+          "reference": 88.0174,
+          "candidate": 91.4179,
+          "gap": -3.4005
+        },
+        "spatial_relationship": {
+          "reference": 71.874,
+          "candidate": 72.0241,
+          "gap": -0.1501
+        },
+        "scene": {
+          "reference": 26.2355,
+          "candidate": 35.2471,
+          "gap": -9.0116
+        },
+        "temporal_style": {
+          "reference": 22.8469,
+          "candidate": 23.4706,
+          "gap": -0.6237
+        },
+        "appearance_style": {
+          "reference": 20.3362,
+          "candidate": 20.3685,
+          "gap": -0.0323
+        },
+        "overall_consistency": {
+          "reference": 24.6035,
+          "candidate": 24.7979,
+          "gap": -0.1944
+        }
+      }
+    },
+    "recipe_a_vo_hadamard_vs_recipe_a_samples_0": {
+      "candidate": "recipe_a_vo_hadamard",
+      "reference": "recipe_a",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 81.595,
+        "candidate": 81.5685,
+        "gap": 0.0265,
+        "ci95": [
+          -0.4721,
+          0.5206
+        ]
+      },
+      "quality": {
+        "reference": 84.1919,
+        "candidate": 84.2867,
+        "gap": -0.0948,
+        "ci95": [
+          -0.5178,
+          0.4355
+        ]
+      },
+      "semantic": {
+        "reference": 71.2073,
+        "candidate": 70.6956,
+        "gap": 0.5117,
+        "ci95": [
+          -1.2943,
+          1.9419
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 94.1605,
+          "candidate": 94.723,
+          "gap": -0.5625
+        },
+        "background_consistency": {
+          "reference": 95.4923,
+          "candidate": 95.5438,
+          "gap": -0.0515
+        },
+        "temporal_flickering": {
+          "reference": 98.6227,
+          "candidate": 98.6659,
+          "gap": -0.0432
+        },
+        "motion_smoothness": {
+          "reference": 97.8866,
+          "candidate": 97.8838,
+          "gap": 0.0028
+        },
+        "dynamic_degree": {
+          "reference": 72.2222,
+          "candidate": 72.2222,
+          "gap": 0.0
+        },
+        "aesthetic_quality": {
+          "reference": 63.8315,
+          "candidate": 63.7469,
+          "gap": 0.0846
+        },
+        "imaging_quality": {
+          "reference": 70.3559,
+          "candidate": 70.2213,
+          "gap": 0.1346
+        },
+        "object_class": {
+          "reference": 77.9272,
+          "candidate": 78.5601,
+          "gap": -0.6329
+        },
+        "multiple_objects": {
+          "reference": 69.8171,
+          "candidate": 67.5305,
+          "gap": 2.2866
+        },
+        "human_action": {
+          "reference": 82.0,
+          "candidate": 80.0,
+          "gap": 2.0
+        },
+        "color": {
+          "reference": 87.983,
+          "candidate": 91.4179,
+          "gap": -3.4349
+        },
+        "spatial_relationship": {
+          "reference": 71.4117,
+          "candidate": 72.0241,
+          "gap": -0.6124
+        },
+        "scene": {
+          "reference": 37.8634,
+          "candidate": 35.2471,
+          "gap": 2.6163
+        },
+        "temporal_style": {
+          "reference": 23.7395,
+          "candidate": 23.4706,
+          "gap": 0.2689
+        },
+        "appearance_style": {
+          "reference": 20.447,
+          "candidate": 20.3685,
+          "gap": 0.0785
+        },
+        "overall_consistency": {
+          "reference": 25.0902,
+          "candidate": 24.7979,
+          "gap": 0.2923
+        }
+      }
+    },
+    "recipe_a_vs_bf16_samples_0": {
+      "candidate": "recipe_a",
+      "reference": "bf16",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 82.1983,
+        "candidate": 81.595,
+        "gap": 0.6033,
+        "ci95": [
+          -0.0347,
+          1.3203
+        ]
+      },
+      "quality": {
+        "reference": 84.5463,
+        "candidate": 84.1919,
+        "gap": 0.3544,
+        "ci95": [
+          -0.2967,
+          1.0743
+        ]
+      },
+      "semantic": {
+        "reference": 72.8063,
+        "candidate": 71.2073,
+        "gap": 1.599,
+        "ci95": [
+          -0.3731,
+          3.7849
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 94.3485,
+          "candidate": 94.1605,
+          "gap": 0.188
+        },
+        "background_consistency": {
+          "reference": 95.7136,
+          "candidate": 95.4923,
+          "gap": 0.2213
+        },
+        "temporal_flickering": {
+          "reference": 98.6401,
+          "candidate": 98.6227,
+          "gap": 0.0174
+        },
+        "motion_smoothness": {
+          "reference": 97.7055,
+          "candidate": 97.8866,
+          "gap": -0.1811
+        },
+        "dynamic_degree": {
+          "reference": 70.8333,
+          "candidate": 72.2222,
+          "gap": -1.3889
+        },
+        "aesthetic_quality": {
+          "reference": 66.4223,
+          "candidate": 63.8315,
+          "gap": 2.5908
+        },
+        "imaging_quality": {
+          "reference": 70.8175,
+          "candidate": 70.3559,
+          "gap": 0.4616
+        },
+        "object_class": {
+          "reference": 81.0918,
+          "candidate": 77.9272,
+          "gap": 3.1646
+        },
+        "multiple_objects": {
+          "reference": 72.7896,
+          "candidate": 69.8171,
+          "gap": 2.9725
+        },
+        "human_action": {
+          "reference": 83.0,
+          "candidate": 82.0,
+          "gap": 1.0
+        },
+        "color": {
+          "reference": 91.1192,
+          "candidate": 87.983,
+          "gap": 3.1362
+        },
+        "spatial_relationship": {
+          "reference": 80.6974,
+          "candidate": 71.4117,
+          "gap": 9.2857
+        },
+        "scene": {
+          "reference": 35.4651,
+          "candidate": 37.8634,
+          "gap": -2.3983
+        },
+        "temporal_style": {
+          "reference": 23.1504,
+          "candidate": 23.7395,
+          "gap": -0.5891
+        },
+        "appearance_style": {
+          "reference": 20.231,
+          "candidate": 20.447,
+          "gap": -0.216
+        },
+        "overall_consistency": {
+          "reference": 25.1358,
+          "candidate": 25.0902,
+          "gap": 0.0456
+        }
+      }
+    },
+    "recipe_a_vs_hif4_linear_samples_0": {
+      "candidate": "recipe_a",
+      "reference": "hif4_linear",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 81.5664,
+        "candidate": 81.595,
+        "gap": -0.0286,
+        "ci95": [
+          -0.4928,
+          0.2981
+        ]
+      },
+      "quality": {
+        "reference": 84.1361,
+        "candidate": 84.1919,
+        "gap": -0.0558,
+        "ci95": [
+          -0.4379,
+          0.2396
+        ]
+      },
+      "semantic": {
+        "reference": 71.2877,
+        "candidate": 71.2073,
+        "gap": 0.0804,
+        "ci95": [
+          -1.5147,
+          1.2371
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 94.0738,
+          "candidate": 94.1605,
+          "gap": -0.0867
+        },
+        "background_consistency": {
+          "reference": 95.7909,
+          "candidate": 95.4923,
+          "gap": 0.2986
+        },
+        "temporal_flickering": {
+          "reference": 98.6179,
+          "candidate": 98.6227,
+          "gap": -0.0048
+        },
+        "motion_smoothness": {
+          "reference": 97.8964,
+          "candidate": 97.8866,
+          "gap": 0.0098
+        },
+        "dynamic_degree": {
+          "reference": 69.4444,
+          "candidate": 72.2222,
+          "gap": -2.7778
+        },
+        "aesthetic_quality": {
+          "reference": 64.4323,
+          "candidate": 63.8315,
+          "gap": 0.6008
+        },
+        "imaging_quality": {
+          "reference": 70.4575,
+          "candidate": 70.3559,
+          "gap": 0.1016
+        },
+        "object_class": {
+          "reference": 78.7975,
+          "candidate": 77.9272,
+          "gap": 0.8703
+        },
+        "multiple_objects": {
+          "reference": 65.625,
+          "candidate": 69.8171,
+          "gap": -4.1921
+        },
+        "human_action": {
+          "reference": 83.0,
+          "candidate": 82.0,
+          "gap": 1.0
+        },
+        "color": {
+          "reference": 91.6374,
+          "candidate": 87.983,
+          "gap": 3.6544
+        },
+        "spatial_relationship": {
+          "reference": 72.6726,
+          "candidate": 71.4117,
+          "gap": 1.2609
+        },
+        "scene": {
+          "reference": 37.718,
+          "candidate": 37.8634,
+          "gap": -0.1454
+        },
+        "temporal_style": {
+          "reference": 23.6046,
+          "candidate": 23.7395,
+          "gap": -0.1349
+        },
+        "appearance_style": {
+          "reference": 20.2128,
+          "candidate": 20.447,
+          "gap": -0.2342
+        },
+        "overall_consistency": {
+          "reference": 24.9083,
+          "candidate": 25.0902,
+          "gap": -0.1819
+        }
+      }
+    },
+    "recipe_a_vs_hif4_qkpv_samples_0": {
+      "candidate": "recipe_a",
+      "reference": "hif4_qkpv",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 78.4755,
+        "candidate": 81.595,
+        "gap": -3.1195,
+        "ci95": [
+          -3.8269,
+          -2.5073
+        ]
+      },
+      "quality": {
+        "reference": 81.4771,
+        "candidate": 84.1919,
+        "gap": -2.7148,
+        "ci95": [
+          -3.4166,
+          -2.0637
+        ]
+      },
+      "semantic": {
+        "reference": 66.469,
+        "candidate": 71.2073,
+        "gap": -4.7383,
+        "ci95": [
+          -6.9178,
+          -3.0413
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 92.7534,
+          "candidate": 94.1605,
+          "gap": -1.4071
+        },
+        "background_consistency": {
+          "reference": 94.3344,
+          "candidate": 95.4923,
+          "gap": -1.1579
+        },
+        "temporal_flickering": {
+          "reference": 98.3308,
+          "candidate": 98.6227,
+          "gap": -0.2919
+        },
+        "motion_smoothness": {
+          "reference": 97.7855,
+          "candidate": 97.8866,
+          "gap": -0.1011
+        },
+        "dynamic_degree": {
+          "reference": 62.5,
+          "candidate": 72.2222,
+          "gap": -9.7222
+        },
+        "aesthetic_quality": {
+          "reference": 58.4096,
+          "candidate": 63.8315,
+          "gap": -5.4219
+        },
+        "imaging_quality": {
+          "reference": 67.3431,
+          "candidate": 70.3559,
+          "gap": -3.0128
+        },
+        "object_class": {
+          "reference": 70.3323,
+          "candidate": 77.9272,
+          "gap": -7.5949
+        },
+        "multiple_objects": {
+          "reference": 52.5915,
+          "candidate": 69.8171,
+          "gap": -17.2256
+        },
+        "human_action": {
+          "reference": 82.0,
+          "candidate": 82.0,
+          "gap": 0.0
+        },
+        "color": {
+          "reference": 88.0174,
+          "candidate": 87.983,
+          "gap": 0.0344
+        },
+        "spatial_relationship": {
+          "reference": 71.874,
+          "candidate": 71.4117,
+          "gap": 0.4623
+        },
+        "scene": {
+          "reference": 26.2355,
+          "candidate": 37.8634,
+          "gap": -11.6279
+        },
+        "temporal_style": {
+          "reference": 22.8469,
+          "candidate": 23.7395,
+          "gap": -0.8926
+        },
+        "appearance_style": {
+          "reference": 20.3362,
+          "candidate": 20.447,
+          "gap": -0.1108
+        },
+        "overall_consistency": {
+          "reference": 24.6035,
+          "candidate": 25.0902,
+          "gap": -0.4867
+        }
+      }
+    },
+    "recipe_a_vs_hisqrot4_qkpv_samples_0": {
+      "candidate": "recipe_a",
+      "reference": "hisqrot4_qkpv",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 78.7993,
+        "candidate": 81.595,
+        "gap": -2.7957,
+        "ci95": [
+          -3.4253,
+          -2.0569
+        ]
+      },
+      "quality": {
+        "reference": 81.5361,
+        "candidate": 84.1919,
+        "gap": -2.6558,
+        "ci95": [
+          -3.3227,
+          -2.0092
+        ]
+      },
+      "semantic": {
+        "reference": 67.852,
+        "candidate": 71.2073,
+        "gap": -3.3553,
+        "ci95": [
+          -5.1919,
+          -1.1624
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 92.8147,
+          "candidate": 94.1605,
+          "gap": -1.3458
+        },
+        "background_consistency": {
+          "reference": 94.6474,
+          "candidate": 95.4923,
+          "gap": -0.8449
+        },
+        "temporal_flickering": {
+          "reference": 98.2406,
+          "candidate": 98.6227,
+          "gap": -0.3821
+        },
+        "motion_smoothness": {
+          "reference": 97.7649,
+          "candidate": 97.8866,
+          "gap": -0.1217
+        },
+        "dynamic_degree": {
+          "reference": 59.7222,
+          "candidate": 72.2222,
+          "gap": -12.5
+        },
+        "aesthetic_quality": {
+          "reference": 59.3304,
+          "candidate": 63.8315,
+          "gap": -4.5011
+        },
+        "imaging_quality": {
+          "reference": 68.0128,
+          "candidate": 70.3559,
+          "gap": -2.3431
+        },
+        "object_class": {
+          "reference": 72.4684,
+          "candidate": 77.9272,
+          "gap": -5.4588
+        },
+        "multiple_objects": {
+          "reference": 59.0701,
+          "candidate": 69.8171,
+          "gap": -10.747
+        },
+        "human_action": {
+          "reference": 81.0,
+          "candidate": 82.0,
+          "gap": -1.0
+        },
+        "color": {
+          "reference": 84.647,
+          "candidate": 87.983,
+          "gap": -3.336
+        },
+        "spatial_relationship": {
+          "reference": 70.6241,
+          "candidate": 71.4117,
+          "gap": -0.7876
+        },
+        "scene": {
+          "reference": 32.2674,
+          "candidate": 37.8634,
+          "gap": -5.596
+        },
+        "temporal_style": {
+          "reference": 22.9704,
+          "candidate": 23.7395,
+          "gap": -0.7691
+        },
+        "appearance_style": {
+          "reference": 20.6552,
+          "candidate": 20.447,
+          "gap": 0.2082
+        },
+        "overall_consistency": {
+          "reference": 24.8423,
+          "candidate": 25.0902,
+          "gap": -0.2479
+        }
+      }
+    },
+    "hisqrot4_linear_vs_bf16_samples_0-1": {
+      "candidate": "hisqrot4_linear",
+      "reference": "bf16",
+      "samples_per_prompt": [
+        0,
+        1
+      ],
+      "total": {
+        "reference": 82.1333,
+        "candidate": 81.9507,
+        "gap": 0.1826,
+        "ci95": [
+          -0.2917,
+          0.7347
+        ]
+      },
+      "quality": {
+        "reference": 84.5327,
+        "candidate": 84.411,
+        "gap": 0.1217,
+        "ci95": [
+          -0.3983,
+          0.6922
+        ]
+      },
+      "semantic": {
+        "reference": 72.5357,
+        "candidate": 72.1094,
+        "gap": 0.4263,
+        "ci95": [
+          -0.8453,
+          1.7511
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 94.5885,
+          "candidate": 94.4641,
+          "gap": 0.1244
+        },
+        "background_consistency": {
+          "reference": 95.9101,
+          "candidate": 96.07,
+          "gap": -0.1599
+        },
+        "temporal_flickering": {
+          "reference": 98.7469,
+          "candidate": 98.6924,
+          "gap": 0.0545
+        },
+        "motion_smoothness": {
+          "reference": 97.643,
+          "candidate": 97.6608,
+          "gap": -0.0178
+        },
+        "dynamic_degree": {
+          "reference": 70.1389,
+          "candidate": 70.1389,
+          "gap": 0.0
+        },
+        "aesthetic_quality": {
+          "reference": 66.2764,
+          "candidate": 65.2002,
+          "gap": 1.0762
+        },
+        "imaging_quality": {
+          "reference": 70.6013,
+          "candidate": 70.9019,
+          "gap": -0.3006
+        },
+        "object_class": {
+          "reference": 83.4652,
+          "candidate": 83.0301,
+          "gap": 0.4351
+        },
+        "multiple_objects": {
+          "reference": 72.8277,
+          "candidate": 69.5503,
+          "gap": 3.2774
+        },
+        "human_action": {
+          "reference": 83.5,
+          "candidate": 83.0,
+          "gap": 0.5
+        },
+        "color": {
+          "reference": 90.4288,
+          "candidate": 91.0411,
+          "gap": -0.6123
+        },
+        "spatial_relationship": {
+          "reference": 78.7249,
+          "candidate": 78.7356,
+          "gap": -0.0107
+        },
+        "scene": {
+          "reference": 33.3576,
+          "candidate": 32.8488,
+          "gap": 0.5088
+        },
+        "temporal_style": {
+          "reference": 23.3526,
+          "candidate": 23.2996,
+          "gap": 0.053
+        },
+        "appearance_style": {
+          "reference": 20.1642,
+          "candidate": 20.1545,
+          "gap": 0.0097
+        },
+        "overall_consistency": {
+          "reference": 24.9754,
+          "candidate": 25.176,
+          "gap": -0.2006
+        }
+      }
+    },
+    "hisqrot4_linear_vs_bf16_samples_0": {
+      "candidate": "hisqrot4_linear",
+      "reference": "bf16",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 82.1983,
+        "candidate": 81.7807,
+        "gap": 0.4176,
+        "ci95": [
+          -0.2466,
+          1.138
+        ]
+      },
+      "quality": {
+        "reference": 84.5463,
+        "candidate": 84.3158,
+        "gap": 0.2305,
+        "ci95": [
+          -0.437,
+          1.0248
+        ]
+      },
+      "semantic": {
+        "reference": 72.8063,
+        "candidate": 71.6403,
+        "gap": 1.166,
+        "ci95": [
+          -0.753,
+          2.9814
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 94.3485,
+          "candidate": 94.7041,
+          "gap": -0.3556
+        },
+        "background_consistency": {
+          "reference": 95.7136,
+          "candidate": 95.7983,
+          "gap": -0.0847
+        },
+        "temporal_flickering": {
+          "reference": 98.6401,
+          "candidate": 98.6408,
+          "gap": -0.0007
+        },
+        "motion_smoothness": {
+          "reference": 97.7055,
+          "candidate": 97.8471,
+          "gap": -0.1416
+        },
+        "dynamic_degree": {
+          "reference": 70.8333,
+          "candidate": 66.6667,
+          "gap": 4.1666
+        },
+        "aesthetic_quality": {
+          "reference": 66.4223,
+          "candidate": 65.5056,
+          "gap": 0.9167
+        },
+        "imaging_quality": {
+          "reference": 70.8175,
+          "candidate": 71.3005,
+          "gap": -0.483
+        },
+        "object_class": {
+          "reference": 81.0918,
+          "candidate": 79.193,
+          "gap": 1.8988
+        },
+        "multiple_objects": {
+          "reference": 72.7896,
+          "candidate": 70.6555,
+          "gap": 2.1341
+        },
+        "human_action": {
+          "reference": 83.0,
+          "candidate": 83.0,
+          "gap": 0.0
+        },
+        "color": {
+          "reference": 91.1192,
+          "candidate": 91.9464,
+          "gap": -0.8272
+        },
+        "spatial_relationship": {
+          "reference": 80.6974,
+          "candidate": 77.4207,
+          "gap": 3.2767
+        },
+        "scene": {
+          "reference": 35.4651,
+          "candidate": 32.1948,
+          "gap": 3.2703
+        },
+        "temporal_style": {
+          "reference": 23.1504,
+          "candidate": 23.437,
+          "gap": -0.2866
+        },
+        "appearance_style": {
+          "reference": 20.231,
+          "candidate": 19.9792,
+          "gap": 0.2518
+        },
+        "overall_consistency": {
+          "reference": 25.1358,
+          "candidate": 25.1587,
+          "gap": -0.0229
+        }
+      }
+    },
+    "hisqrot4_qkpv_vs_bf16_samples_0": {
+      "candidate": "hisqrot4_qkpv",
+      "reference": "bf16",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 82.1983,
+        "candidate": 78.7993,
+        "gap": 3.399,
+        "ci95": [
+          2.5181,
+          4.266
+        ]
+      },
+      "quality": {
+        "reference": 84.5463,
+        "candidate": 81.5361,
+        "gap": 3.0102,
+        "ci95": [
+          2.0687,
+          4.0278
+        ]
+      },
+      "semantic": {
+        "reference": 72.8063,
+        "candidate": 67.852,
+        "gap": 4.9543,
+        "ci95": [
+          2.468,
+          6.8343
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 94.3485,
+          "candidate": 92.8147,
+          "gap": 1.5338
+        },
+        "background_consistency": {
+          "reference": 95.7136,
+          "candidate": 94.6474,
+          "gap": 1.0662
+        },
+        "temporal_flickering": {
+          "reference": 98.6401,
+          "candidate": 98.2406,
+          "gap": 0.3995
+        },
+        "motion_smoothness": {
+          "reference": 97.7055,
+          "candidate": 97.7649,
+          "gap": -0.0594
+        },
+        "dynamic_degree": {
+          "reference": 70.8333,
+          "candidate": 59.7222,
+          "gap": 11.1111
+        },
+        "aesthetic_quality": {
+          "reference": 66.4223,
+          "candidate": 59.3304,
+          "gap": 7.0919
+        },
+        "imaging_quality": {
+          "reference": 70.8175,
+          "candidate": 68.0128,
+          "gap": 2.8047
+        },
+        "object_class": {
+          "reference": 81.0918,
+          "candidate": 72.4684,
+          "gap": 8.6234
+        },
+        "multiple_objects": {
+          "reference": 72.7896,
+          "candidate": 59.0701,
+          "gap": 13.7195
+        },
+        "human_action": {
+          "reference": 83.0,
+          "candidate": 81.0,
+          "gap": 2.0
+        },
+        "color": {
+          "reference": 91.1192,
+          "candidate": 84.647,
+          "gap": 6.4722
+        },
+        "spatial_relationship": {
+          "reference": 80.6974,
+          "candidate": 70.6241,
+          "gap": 10.0733
+        },
+        "scene": {
+          "reference": 35.4651,
+          "candidate": 32.2674,
+          "gap": 3.1977
+        },
+        "temporal_style": {
+          "reference": 23.1504,
+          "candidate": 22.9704,
+          "gap": 0.18
+        },
+        "appearance_style": {
+          "reference": 20.231,
+          "candidate": 20.6552,
+          "gap": -0.4242
+        },
+        "overall_consistency": {
+          "reference": 25.1358,
+          "candidate": 24.8423,
+          "gap": 0.2935
+        }
+      }
+    },
+    "hisqrot4_qkpv_vs_hif4_qkpv_samples_0": {
+      "candidate": "hisqrot4_qkpv",
+      "reference": "hif4_qkpv",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 78.4755,
+        "candidate": 78.7993,
+        "gap": -0.3238,
+        "ci95": [
+          -0.9395,
+          0.2331
+        ]
+      },
+      "quality": {
+        "reference": 81.4771,
+        "candidate": 81.5361,
+        "gap": -0.059,
+        "ci95": [
+          -0.6358,
+          0.5352
+        ]
+      },
+      "semantic": {
+        "reference": 66.469,
+        "candidate": 67.852,
+        "gap": -1.383,
+        "ci95": [
+          -3.3897,
+          0.1508
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 92.7534,
+          "candidate": 92.8147,
+          "gap": -0.0613
+        },
+        "background_consistency": {
+          "reference": 94.3344,
+          "candidate": 94.6474,
+          "gap": -0.313
+        },
+        "temporal_flickering": {
+          "reference": 98.3308,
+          "candidate": 98.2406,
+          "gap": 0.0902
+        },
+        "motion_smoothness": {
+          "reference": 97.7855,
+          "candidate": 97.7649,
+          "gap": 0.0206
+        },
+        "dynamic_degree": {
+          "reference": 62.5,
+          "candidate": 59.7222,
+          "gap": 2.7778
+        },
+        "aesthetic_quality": {
+          "reference": 58.4096,
+          "candidate": 59.3304,
+          "gap": -0.9208
+        },
+        "imaging_quality": {
+          "reference": 67.3431,
+          "candidate": 68.0128,
+          "gap": -0.6697
+        },
+        "object_class": {
+          "reference": 70.3323,
+          "candidate": 72.4684,
+          "gap": -2.1361
+        },
+        "multiple_objects": {
+          "reference": 52.5915,
+          "candidate": 59.0701,
+          "gap": -6.4786
+        },
+        "human_action": {
+          "reference": 82.0,
+          "candidate": 81.0,
+          "gap": 1.0
+        },
+        "color": {
+          "reference": 88.0174,
+          "candidate": 84.647,
+          "gap": 3.3704
+        },
+        "spatial_relationship": {
+          "reference": 71.874,
+          "candidate": 70.6241,
+          "gap": 1.2499
+        },
+        "scene": {
+          "reference": 26.2355,
+          "candidate": 32.2674,
+          "gap": -6.0319
+        },
+        "temporal_style": {
+          "reference": 22.8469,
+          "candidate": 22.9704,
+          "gap": -0.1235
+        },
+        "appearance_style": {
+          "reference": 20.3362,
+          "candidate": 20.6552,
+          "gap": -0.319
+        },
+        "overall_consistency": {
+          "reference": 24.6035,
+          "candidate": 24.8423,
+          "gap": -0.2388
+        }
+      }
+    },
+    "hisqrot4_qkpv_vs_hisqrot4_linear_samples_0": {
+      "candidate": "hisqrot4_qkpv",
+      "reference": "hisqrot4_linear",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 81.7807,
+        "candidate": 78.7993,
+        "gap": 2.9814,
+        "ci95": [
+          2.0595,
+          3.6634
+        ]
+      },
+      "quality": {
+        "reference": 84.3158,
+        "candidate": 81.5361,
+        "gap": 2.7797,
+        "ci95": [
+          1.8865,
+          3.5855
+        ]
+      },
+      "semantic": {
+        "reference": 71.6403,
+        "candidate": 67.852,
+        "gap": 3.7883,
+        "ci95": [
+          1.428,
+          5.5278
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 94.7041,
+          "candidate": 92.8147,
+          "gap": 1.8894
+        },
+        "background_consistency": {
+          "reference": 95.7983,
+          "candidate": 94.6474,
+          "gap": 1.1509
+        },
+        "temporal_flickering": {
+          "reference": 98.6408,
+          "candidate": 98.2406,
+          "gap": 0.4002
+        },
+        "motion_smoothness": {
+          "reference": 97.8471,
+          "candidate": 97.7649,
+          "gap": 0.0822
+        },
+        "dynamic_degree": {
+          "reference": 66.6667,
+          "candidate": 59.7222,
+          "gap": 6.9445
+        },
+        "aesthetic_quality": {
+          "reference": 65.5056,
+          "candidate": 59.3304,
+          "gap": 6.1752
+        },
+        "imaging_quality": {
+          "reference": 71.3005,
+          "candidate": 68.0128,
+          "gap": 3.2877
+        },
+        "object_class": {
+          "reference": 79.193,
+          "candidate": 72.4684,
+          "gap": 6.7246
+        },
+        "multiple_objects": {
+          "reference": 70.6555,
+          "candidate": 59.0701,
+          "gap": 11.5854
+        },
+        "human_action": {
+          "reference": 83.0,
+          "candidate": 81.0,
+          "gap": 2.0
+        },
+        "color": {
+          "reference": 91.9464,
+          "candidate": 84.647,
+          "gap": 7.2994
+        },
+        "spatial_relationship": {
+          "reference": 77.4207,
+          "candidate": 70.6241,
+          "gap": 6.7966
+        },
+        "scene": {
+          "reference": 32.1948,
+          "candidate": 32.2674,
+          "gap": -0.0726
+        },
+        "temporal_style": {
+          "reference": 23.437,
+          "candidate": 22.9704,
+          "gap": 0.4666
+        },
+        "appearance_style": {
+          "reference": 19.9792,
+          "candidate": 20.6552,
+          "gap": -0.676
+        },
+        "overall_consistency": {
+          "reference": 25.1587,
+          "candidate": 24.8423,
+          "gap": 0.3164
+        }
+      }
+    },
+    "hisqrot4_qkpv_qk_hadamard_p_reordering_vs_bf16_samples_0": {
+      "candidate": "hisqrot4_qkpv_qk_hadamard_p_reordering",
+      "reference": "bf16",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 82.1983,
+        "candidate": 81.6631,
+        "gap": 0.5352,
+        "ci95": [
+          -0.1936,
+          1.253
+        ]
+      },
+      "quality": {
+        "reference": 84.5463,
+        "candidate": 84.3674,
+        "gap": 0.1789,
+        "ci95": [
+          -0.5113,
+          1.0423
+        ]
+      },
+      "semantic": {
+        "reference": 72.8063,
+        "candidate": 70.8459,
+        "gap": 1.9604,
+        "ci95": [
+          -0.2945,
+          3.6111
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 94.3485,
+          "candidate": 95.0628,
+          "gap": -0.7143
+        },
+        "background_consistency": {
+          "reference": 95.7136,
+          "candidate": 95.4899,
+          "gap": 0.2237
+        },
+        "temporal_flickering": {
+          "reference": 98.6401,
+          "candidate": 98.7121,
+          "gap": -0.072
+        },
+        "motion_smoothness": {
+          "reference": 97.7055,
+          "candidate": 97.9295,
+          "gap": -0.224
+        },
+        "dynamic_degree": {
+          "reference": 70.8333,
+          "candidate": 69.4444,
+          "gap": 1.3889
+        },
+        "aesthetic_quality": {
+          "reference": 66.4223,
+          "candidate": 64.3662,
+          "gap": 2.0561
+        },
+        "imaging_quality": {
+          "reference": 70.8175,
+          "candidate": 70.9089,
+          "gap": -0.0914
+        },
+        "object_class": {
+          "reference": 81.0918,
+          "candidate": 74.9209,
+          "gap": 6.1709
+        },
+        "multiple_objects": {
+          "reference": 72.7896,
+          "candidate": 72.1799,
+          "gap": 0.6097
+        },
+        "human_action": {
+          "reference": 83.0,
+          "candidate": 84.0,
+          "gap": -1.0
+        },
+        "color": {
+          "reference": 91.1192,
+          "candidate": 86.863,
+          "gap": 4.2562
+        },
+        "spatial_relationship": {
+          "reference": 80.6974,
+          "candidate": 72.061,
+          "gap": 8.6364
+        },
+        "scene": {
+          "reference": 35.4651,
+          "candidate": 35.9012,
+          "gap": -0.4361
+        },
+        "temporal_style": {
+          "reference": 23.1504,
+          "candidate": 23.1258,
+          "gap": 0.0246
+        },
+        "appearance_style": {
+          "reference": 20.231,
+          "candidate": 20.4098,
+          "gap": -0.1788
+        },
+        "overall_consistency": {
+          "reference": 25.1358,
+          "candidate": 25.1137,
+          "gap": 0.0221
+        }
+      }
+    },
+    "hisqrot4_qkpv_qk_hadamard_p_reordering_vs_recipe_a_samples_0": {
+      "candidate": "hisqrot4_qkpv_qk_hadamard_p_reordering",
+      "reference": "recipe_a",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 81.595,
+        "candidate": 81.6631,
+        "gap": -0.0681,
+        "ci95": [
+          -0.6979,
+          0.5958
+        ]
+      },
+      "quality": {
+        "reference": 84.1919,
+        "candidate": 84.3674,
+        "gap": -0.1755,
+        "ci95": [
+          -0.7875,
+          0.4866
+        ]
+      },
+      "semantic": {
+        "reference": 71.2073,
+        "candidate": 70.8459,
+        "gap": 0.3614,
+        "ci95": [
+          -1.6035,
+          2.1956
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 94.1605,
+          "candidate": 95.0628,
+          "gap": -0.9023
+        },
+        "background_consistency": {
+          "reference": 95.4923,
+          "candidate": 95.4899,
+          "gap": 0.0024
+        },
+        "temporal_flickering": {
+          "reference": 98.6227,
+          "candidate": 98.7121,
+          "gap": -0.0894
+        },
+        "motion_smoothness": {
+          "reference": 97.8866,
+          "candidate": 97.9295,
+          "gap": -0.0429
+        },
+        "dynamic_degree": {
+          "reference": 72.2222,
+          "candidate": 69.4444,
+          "gap": 2.7778
+        },
+        "aesthetic_quality": {
+          "reference": 63.8315,
+          "candidate": 64.3662,
+          "gap": -0.5347
+        },
+        "imaging_quality": {
+          "reference": 70.3559,
+          "candidate": 70.9089,
+          "gap": -0.553
+        },
+        "object_class": {
+          "reference": 77.9272,
+          "candidate": 74.9209,
+          "gap": 3.0063
+        },
+        "multiple_objects": {
+          "reference": 69.8171,
+          "candidate": 72.1799,
+          "gap": -2.3628
+        },
+        "human_action": {
+          "reference": 82.0,
+          "candidate": 84.0,
+          "gap": -2.0
+        },
+        "color": {
+          "reference": 87.983,
+          "candidate": 86.863,
+          "gap": 1.12
+        },
+        "spatial_relationship": {
+          "reference": 71.4117,
+          "candidate": 72.061,
+          "gap": -0.6493
+        },
+        "scene": {
+          "reference": 37.8634,
+          "candidate": 35.9012,
+          "gap": 1.9622
+        },
+        "temporal_style": {
+          "reference": 23.7395,
+          "candidate": 23.1258,
+          "gap": 0.6137
+        },
+        "appearance_style": {
+          "reference": 20.447,
+          "candidate": 20.4098,
+          "gap": 0.0372
+        },
+        "overall_consistency": {
+          "reference": 25.0902,
+          "candidate": 25.1137,
+          "gap": -0.0235
+        }
+      }
+    },
+    "hisqrot4_qkpv_qk_hadamard_p_reordering_vs_hisqrot4_linear_samples_0": {
+      "candidate": "hisqrot4_qkpv_qk_hadamard_p_reordering",
+      "reference": "hisqrot4_linear",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 81.7807,
+        "candidate": 81.6631,
+        "gap": 0.1176,
+        "ci95": [
+          -0.5083,
+          0.6706
+        ]
+      },
+      "quality": {
+        "reference": 84.3158,
+        "candidate": 84.3674,
+        "gap": -0.0516,
+        "ci95": [
+          -0.6211,
+          0.5727
+        ]
+      },
+      "semantic": {
+        "reference": 71.6403,
+        "candidate": 70.8459,
+        "gap": 0.7944,
+        "ci95": [
+          -1.1416,
+          2.2394
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 94.7041,
+          "candidate": 95.0628,
+          "gap": -0.3587
+        },
+        "background_consistency": {
+          "reference": 95.7983,
+          "candidate": 95.4899,
+          "gap": 0.3084
+        },
+        "temporal_flickering": {
+          "reference": 98.6408,
+          "candidate": 98.7121,
+          "gap": -0.0713
+        },
+        "motion_smoothness": {
+          "reference": 97.8471,
+          "candidate": 97.9295,
+          "gap": -0.0824
+        },
+        "dynamic_degree": {
+          "reference": 66.6667,
+          "candidate": 69.4444,
+          "gap": -2.7777
+        },
+        "aesthetic_quality": {
+          "reference": 65.5056,
+          "candidate": 64.3662,
+          "gap": 1.1394
+        },
+        "imaging_quality": {
+          "reference": 71.3005,
+          "candidate": 70.9089,
+          "gap": 0.3916
+        },
+        "object_class": {
+          "reference": 79.193,
+          "candidate": 74.9209,
+          "gap": 4.2721
+        },
+        "multiple_objects": {
+          "reference": 70.6555,
+          "candidate": 72.1799,
+          "gap": -1.5244
+        },
+        "human_action": {
+          "reference": 83.0,
+          "candidate": 84.0,
+          "gap": -1.0
+        },
+        "color": {
+          "reference": 91.9464,
+          "candidate": 86.863,
+          "gap": 5.0834
+        },
+        "spatial_relationship": {
+          "reference": 77.4207,
+          "candidate": 72.061,
+          "gap": 5.3597
+        },
+        "scene": {
+          "reference": 32.1948,
+          "candidate": 35.9012,
+          "gap": -3.7064
+        },
+        "temporal_style": {
+          "reference": 23.437,
+          "candidate": 23.1258,
+          "gap": 0.3112
+        },
+        "appearance_style": {
+          "reference": 19.9792,
+          "candidate": 20.4098,
+          "gap": -0.4306
+        },
+        "overall_consistency": {
+          "reference": 25.1587,
+          "candidate": 25.1137,
+          "gap": 0.045
+        }
+      }
+    },
+    "hisqrot4_qkpv_qk_hadamard_p_reordering_vs_hisqrot4_qkpv_samples_0": {
+      "candidate": "hisqrot4_qkpv_qk_hadamard_p_reordering",
+      "reference": "hisqrot4_qkpv",
+      "samples_per_prompt": [
+        0
+      ],
+      "total": {
+        "reference": 78.7993,
+        "candidate": 81.6631,
+        "gap": -2.8638,
+        "ci95": [
+          -3.5963,
+          -2.2214
+        ]
+      },
+      "quality": {
+        "reference": 81.5361,
+        "candidate": 84.3674,
+        "gap": -2.8313,
+        "ci95": [
+          -3.49,
+          -2.1611
+        ]
+      },
+      "semantic": {
+        "reference": 67.852,
+        "candidate": 70.8459,
+        "gap": -2.9939,
+        "ci95": [
+          -5.3581,
+          -1.0777
+        ]
+      },
+      "dimensions": {
+        "subject_consistency": {
+          "reference": 92.8147,
+          "candidate": 95.0628,
+          "gap": -2.2481
+        },
+        "background_consistency": {
+          "reference": 94.6474,
+          "candidate": 95.4899,
+          "gap": -0.8425
+        },
+        "temporal_flickering": {
+          "reference": 98.2406,
+          "candidate": 98.7121,
+          "gap": -0.4715
+        },
+        "motion_smoothness": {
+          "reference": 97.7649,
+          "candidate": 97.9295,
+          "gap": -0.1646
+        },
+        "dynamic_degree": {
+          "reference": 59.7222,
+          "candidate": 69.4444,
+          "gap": -9.7222
+        },
+        "aesthetic_quality": {
+          "reference": 59.3304,
+          "candidate": 64.3662,
+          "gap": -5.0358
+        },
+        "imaging_quality": {
+          "reference": 68.0128,
+          "candidate": 70.9089,
+          "gap": -2.8961
+        },
+        "object_class": {
+          "reference": 72.4684,
+          "candidate": 74.9209,
+          "gap": -2.4525
+        },
+        "multiple_objects": {
+          "reference": 59.0701,
+          "candidate": 72.1799,
+          "gap": -13.1098
+        },
+        "human_action": {
+          "reference": 81.0,
+          "candidate": 84.0,
+          "gap": -3.0
+        },
+        "color": {
+          "reference": 84.647,
+          "candidate": 86.863,
+          "gap": -2.216
+        },
+        "spatial_relationship": {
+          "reference": 70.6241,
+          "candidate": 72.061,
+          "gap": -1.4369
+        },
+        "scene": {
+          "reference": 32.2674,
+          "candidate": 35.9012,
+          "gap": -3.6338
+        },
+        "temporal_style": {
+          "reference": 22.9704,
+          "candidate": 23.1258,
+          "gap": -0.1554
+        },
+        "appearance_style": {
+          "reference": 20.6552,
+          "candidate": 20.4098,
+          "gap": 0.2454
+        },
+        "overall_consistency": {
+          "reference": 24.8423,
+          "candidate": 25.1137,
+          "gap": -0.2714
+        }
+      }
+    }
+  },
+  "raw_videos_in_repository": false
+}

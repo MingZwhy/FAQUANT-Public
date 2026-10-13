@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 
 import torch
@@ -122,6 +122,96 @@ def resolve_hisq_block_size(
     return down_proj_block_size
 
 
+def hisq_rotation_source(
+    layer_name: str, sharing: str, *, seed: int, global_seed: int
+) -> tuple[str, int]:
+    """Name and seed that ``layer_name``'s rotation is derived from under ``sharing``.
+
+    "norm" keys q/k/v by their layer's input_layernorm and gate/up by its
+    post_attention_layernorm. "global" returns the key and seed of
+    ``apply_qwen3_global_rotation``'s residual rotation, so the online version
+    rotates every reader exactly as the folded one does. o_proj and down_proj
+    read no residual stream and always keep their own.
+    """
+
+    if sharing not in ("linear", "norm", "global"):
+        raise ValueError(f"unknown HiSQ rotation sharing {sharing!r}")
+    parent, _, projection = layer_name.rpartition(".")
+    if sharing == "linear" or projection in ("o_proj", "down_proj"):
+        return layer_name, seed
+    if sharing == "global":
+        return "global_residual", global_seed
+    if projection in ("q_proj", "k_proj", "v_proj"):
+        norm = "input_layernorm"
+    elif projection in ("gate_proj", "up_proj"):
+        norm = "post_attention_layernorm"
+    else:
+        raise ValueError(f"{layer_name} reads no RMSNorm a rotation could be keyed by")
+    return f"{parent.rpartition('.')[0]}.{norm}", seed
+
+
+QWEN_RESIDUAL_READERS = ("q_proj", "k_proj", "v_proj", "gate_proj", "up_proj")
+
+
+def restrict_hisq_rotation(rotation: HiSQRotation, construction: str) -> HiSQRotation:
+    """Keep part of the HiSQ construction: "signs" drops the permutation, "plain" the signs too."""
+
+    if construction == "full":
+        return rotation
+    if construction not in ("signs", "plain"):
+        raise ValueError(f"unknown HiSQ construction {construction!r}")
+    permutation = torch.arange(
+        rotation.permutation.numel(), device=rotation.permutation.device
+    )
+    signs = rotation.signs if construction == "signs" else torch.ones_like(rotation.signs)
+    return HiSQRotation(signs, permutation, rotation.block_size, rotation.layer_seed)
+
+
+def derive_qwen_hisq_rotation(
+    layer_name: str,
+    in_features: int,
+    *,
+    seed: int,
+    block_size: int,
+    down_proj_block_size: int | None = None,
+    sharing: str = "linear",
+    global_seed: int = 0,
+    reader_construction: str = "full",
+    od_construction: str = "full",
+    reader_block_size: int | None = None,
+    o_construction: str | None = None,
+    device: torch.device | str = "cpu",
+) -> tuple[HiSQRotation, str]:
+    """The rotation one Qwen projection takes under a HiSQ variant, and the key it came from.
+
+    ``o_construction`` overrides ``od_construction`` for o_proj alone.
+    """
+
+    source, source_seed = hisq_rotation_source(
+        layer_name, sharing, seed=seed, global_seed=global_seed
+    )
+    projection = layer_name.rsplit(".", 1)[-1]
+    reader = projection in QWEN_RESIDUAL_READERS
+    size = resolve_hisq_block_size(
+        layer_name,
+        in_features,
+        block_size=block_size,
+        down_proj_block_size=down_proj_block_size,
+    )
+    if reader and reader_block_size is not None:
+        size = reader_block_size
+    rotation = derive_hisq_rotation(
+        source, in_features, seed=source_seed, block_size=size, device=device
+    )
+    if reader:
+        construction = reader_construction
+    elif projection == "o_proj" and o_construction is not None:
+        construction = o_construction
+    else:
+        construction = od_construction
+    return restrict_hisq_rotation(rotation, construction), source
+
+
 def _iter_qwen_projection_linears(
     model: nn.Module, exempt: frozenset[tuple[int, str]] = frozenset()
 ):
@@ -150,28 +240,48 @@ def apply_qwen_hisq_input_rotation(
     down_proj_block_size: int | None = None,
     seed: int = 17,
     exempt_modules: Iterable[tuple[int, str]] = (),
+    on_rotated: Callable[[str], None] | None = None,
+    projections: Iterable[str] = (),
+    sharing: str = "linear",
+    global_seed: int = 0,
+    reader_construction: str = "full",
+    od_construction: str = "full",
+    reader_block_size: int | None = None,
+    o_construction: str | None = None,
 ) -> dict[str, object]:
-    """Precondition all Qwen projection linears for the RTN HiSQ cell.
+    """Precondition the Qwen projection linears for the RTN HiSQ cell.
 
     Projections in ``exempt_modules`` are left alone: they stay in BF16, so
-    rotating their weights would leave them in a basis nothing undoes.
+    rotating their weights would leave them in a basis nothing undoes. A
+    non-empty ``projections`` restricts the rotation to those names; the
+    remaining arguments pick the variant (see ``derive_qwen_hisq_rotation``).
+
+    ``on_rotated(layer_name)`` runs right after each projection is rotated.
+    Quantizing there consumes the FP32 override before the next projection
+    allocates its own; otherwise every override is alive at once, about three
+    times the BF16 model.
     """
 
     exempt = frozenset(exempt_modules)
+    selected = frozenset(projections)
     layer_stats: dict[str, dict[str, int]] = {}
     for layer_name, linear in _iter_qwen_projection_linears(model, exempt):
+        if selected and layer_name.rsplit(".", 1)[-1] not in selected:
+            continue
         if not isinstance(linear, nn.Linear):
             raise TypeError(f"Qwen HiSQ expected nn.Linear at {layer_name}")
-        rotation = derive_hisq_rotation(
+        rotation, source = derive_qwen_hisq_rotation(
             layer_name,
             linear.in_features,
             seed=seed,
-            block_size=resolve_hisq_block_size(
-                layer_name,
-                linear.in_features,
-                block_size=block_size,
-                down_proj_block_size=down_proj_block_size,
-            ),
+            block_size=block_size,
+            down_proj_block_size=down_proj_block_size,
+            sharing=sharing,
+            global_seed=global_seed,
+            reader_construction=reader_construction,
+            od_construction=od_construction,
+            reader_block_size=reader_block_size,
+            o_construction=o_construction,
             device=linear.weight.device,
         )
         transformed_weight = precondition_linear_for_hisq_rotation(
@@ -186,7 +296,11 @@ def apply_qwen_hisq_input_rotation(
             "block_size": rotation.block_size,
             "blocks": linear.in_features // rotation.block_size,
             "layer_seed": rotation.layer_seed,
+            "source": source,
         }
+        del linear, transformed_weight
+        if on_rotated is not None:
+            on_rotated(layer_name)
     return {
         "source": "GCC-HiFloat/HiSQRot4",
         "source_commit": "84cdcf7b393d2665eedb5cf26e11f590f6852c46",
@@ -194,5 +308,10 @@ def apply_qwen_hisq_input_rotation(
         "block_size": block_size,
         "down_proj_block_size": down_proj_block_size,
         "seed": seed,
+        "sharing": sharing,
+        "reader_construction": reader_construction,
+        "od_construction": od_construction,
+        "o_construction": o_construction,
+        "reader_block_size": reader_block_size,
         "layers": layer_stats,
     }

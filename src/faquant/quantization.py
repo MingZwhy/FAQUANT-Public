@@ -7,6 +7,7 @@ from torch.nn import functional as F
 from .config import resolve_quant_exempt_modules
 from .hif4 import (
     HIF4_BLOCK_SIZE,
+    HIF4_SCALE_LEVELS,
     fake_quantize_hif4,
     fit_hif4_compact_parameters_for_axis,
 )
@@ -34,11 +35,14 @@ def fake_quantize(
     group_size: int = -1,
     symmetric: bool = True,
     clip_ratio: float = 1.0,
+    hif4_levels: str | None = None,
 ) -> torch.Tensor:
     """Quantize then dequantize groups on the last axis.
 
     Activations are therefore per-token/per-group, while a 2-D weight tensor is
     per-output-channel/per-group. The returned tensor keeps the original dtype.
+    ``hif4_levels`` picks the HiF4 scale-level variant; weights pass
+    ``HIF4_SCALE_LEVELS``, direct-cast tensors keep the activation default.
     """
 
     if quant_format == "hif4":
@@ -50,7 +54,7 @@ def fake_quantize(
             raise ValueError("HiF4 does not support asymmetric quantization")
         if clip_ratio != 1.0:
             raise ValueError("HiF4 direct-cast does not support clipping")
-        return fake_quantize_hif4(x)
+        return fake_quantize_hif4(x, levels=hif4_levels)
     if quant_format == "mxfp8e4m3":
         if bits != 8:
             raise ValueError("MXFP8 E4M3 requires bits=8")
@@ -175,6 +179,7 @@ class FakeQuantLinear(nn.Module):
                 group_size=weight_group_size,
                 symmetric=symmetric,
                 clip_ratio=clip_ratio,
+                hif4_levels=HIF4_SCALE_LEVELS,
             )
             weight = weight.to(dtype=linear.weight.dtype)
         # Quantizer setup runs under ``torch.inference_mode``. Materialize
@@ -272,12 +277,33 @@ class FakeQuantLinear(nn.Module):
         return F.linear(x, self.weight, self.bias)
 
 
+def release_replaced_module(module: nn.Module) -> None:
+    """Drop the accelerate hooks a ``device_map`` dispatch put on ``module``.
+
+    Dispatch wraps every stateful submodule's forward in a closure over the
+    module itself. That cycle keeps a replaced projection's weights, and its
+    FP32 HiSQ override, on the GPU until a full garbage collection, which on a
+    model split across GPUs comes too late to avoid running out of memory.
+    """
+
+    if not any(hasattr(sub, "_hf_hook") for sub in module.modules()):
+        return
+    from accelerate.hooks import remove_hook_from_module
+
+    remove_hook_from_module(module, recurse=True)
+    # Removing the hook stores the original bound ``forward`` back on the
+    # instance, which is the same module-to-itself cycle; drop it as well.
+    for sub in module.modules():
+        sub.__dict__.pop("forward", None)
+
+
 def replace_linear_with_fake_quant(
     parent: nn.Module, name: str, config: object, *, weights_prequantized: bool
 ) -> None:
     linear = getattr(parent, name)
     if isinstance(linear, FakeQuantLinear):
         return
+    original = linear
     online_hadamard = bool(getattr(linear, "faquant_online_hadamard", False))
     online_hadamard_block_size = getattr(
         linear, "faquant_online_hadamard_block_size", None
@@ -346,6 +372,7 @@ def replace_linear_with_fake_quant(
     if hif4_qat_master is not None:
         replacement.faquant_hif4_qat_master = hif4_qat_master
     setattr(parent, name, replacement)
+    release_replaced_module(original)
 
 
 @torch.inference_mode()

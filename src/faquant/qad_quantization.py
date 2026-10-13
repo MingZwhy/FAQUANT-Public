@@ -89,7 +89,7 @@ class HiF4QATLinear(nn.Module):
     """Trainable HiF4 W4A4 linear with exact-reference QDQ and STE gradients.
 
     The module is deliberately separate from :class:`FakeQuantLinear`, whose
-    frozen, pre-quantized weights are the inference/PTQ contract. QAD starts
+    frozen, pre-quantized weights are the inference/PTQ interface. QAD starts
     from such a module (normally after GPTQ), promotes its dequantized weight
     to a trainable master parameter, and re-applies the same HiF4 direct cast
     on every forward.
@@ -255,8 +255,8 @@ class HiF4QATLinear(nn.Module):
         # across three early-layer projections -- the ones where HiF4's code
         # spacing is finest -- ended up one ULP away.  Amplified through 36
         # layers that showed up as a 2.5 logit gap between the QAT forward and
-        # the module `to_inference` builds, tripping the exact-parity check in
-        # scripts/eval_qwen_hif4_qad.py and costing that checkpoint both
+        # the module `to_inference` builds, tripping the exact-parity check of
+        # the evaluation workflow and costing that checkpoint both
         # readouts.  The deployed side was always the correct one; it is the
         # training forward that was off.
         weight_quantized = quantized + (self.weight - self.weight.detach())
@@ -300,7 +300,7 @@ class HiF4QATLinear(nn.Module):
             if self.bias is not None:
                 linear.bias.copy_(self.bias)
 
-        # Recreate the metadata contract consumed by FakeQuantLinear.
+        # Recreate the metadata consumed by FakeQuantLinear.
         if self.input_scale is not None:
             linear.faquant_input_scale = self.input_scale
         if self.input_rotation_signs is not None:
@@ -841,14 +841,23 @@ def hif4_code_step_parameter_groups(
 
 
 @torch.no_grad()
-def collect_hif4_qat_master_grid_stats(model: nn.Module) -> QATMasterGridStats:
-    """Summarize latent-master residuals without retaining full weight copies."""
+def collect_hif4_qat_master_grid_stats(
+    model: nn.Module, *, device: torch.device | str | None = None
+) -> QATMasterGridStats:
+    """Summarize latent-master residuals without retaining full weight copies.
+
+    ``device`` moves each linear there for its own re-quantization and back,
+    for a model kept in CPU memory.
+    """
 
     linears = elements = off_grid = 0
     residual_sq = grid_sq = 0.0
     for module in model.modules():
         if not isinstance(module, HiF4QATLinear):
             continue
+        home = module.weight.device
+        if device is not None:
+            module.to(device)
         quantized = module._quantize_weight()
         difference = module.weight.float() - quantized.float()
         linears += 1
@@ -857,6 +866,8 @@ def collect_hif4_qat_master_grid_stats(model: nn.Module) -> QATMasterGridStats:
         residual_sq += float(difference.square().sum().item())
         grid_sq += float(quantized.float().square().sum().item())
         del quantized, difference
+        if device is not None:
+            module.to(home)
     if not linears:
         raise ValueError("model contains no HiF4QATLinear modules")
     return QATMasterGridStats(

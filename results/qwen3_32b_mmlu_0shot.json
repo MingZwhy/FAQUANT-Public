@@ -1,0 +1,249 @@
+{
+  "model": "Qwen/Qwen3-32B",
+  "model_revision": "9216db5781bf21249d130ec9da846c4624c16137",
+  "benchmark": "MMLU",
+  "setting": "0-shot",
+  "samples": 14042,
+  "aggregation": "sample-weighted accuracy",
+  "kl_definition": "mean over questions of KL(BF16 || quantized) between the softmax distributions over the four answer log-likelihoods",
+  "bf16_percent": 80.8859136875089,
+  "bf16_groups": {
+    "stem": {
+      "samples": 3153,
+      "percent": 82.55629559150016
+    },
+    "other": {
+      "samples": 3107,
+      "percent": 83.7463791438687
+    },
+    "social_sciences": {
+      "samples": 3077,
+      "percent": 89.30776730581735
+    },
+    "humanities": {
+      "samples": 4705,
+      "percent": 72.36981934112646
+    }
+  },
+  "configurations": {
+    "three_level_hisq1024_unprotected": {
+      "hif4_scale_levels": "123",
+      "rotation": "hisq1024",
+      "gptq": {
+        "damp": 0.03,
+        "act_order_within_group": false
+      },
+      "protected_layers": [],
+      "quantized_linears": 448,
+      "total_linears": 448,
+      "percent": 79.57555903717419,
+      "loss_pp": 1.310354650334716,
+      "kl": 0.10673850120322871,
+      "groups": {
+        "stem": {
+          "samples": 3153,
+          "percent": 80.97050428163654
+        },
+        "other": {
+          "samples": 3107,
+          "percent": 83.0704859993563
+        },
+        "social_sciences": {
+          "samples": 3077,
+          "percent": 88.0402989925252
+        },
+        "humanities": {
+          "samples": 4705,
+          "percent": 70.79702444208289
+        }
+      }
+    },
+    "three_level_hisq1024_protect_35_41_42_45_46": {
+      "hif4_scale_levels": "123",
+      "rotation": "hisq1024",
+      "gptq": {
+        "damp": 0.03,
+        "act_order_within_group": false
+      },
+      "protected_layers": [
+        35,
+        41,
+        42,
+        45,
+        46
+      ],
+      "quantized_linears": 413,
+      "total_linears": 448,
+      "percent": 80.12391397236861,
+      "loss_pp": 0.7619997151402913,
+      "kl": 0.08176306193779359,
+      "groups": {
+        "stem": {
+          "samples": 3153,
+          "percent": 81.73168411037108
+        },
+        "other": {
+          "samples": 3107,
+          "percent": 83.03830061152236
+        },
+        "social_sciences": {
+          "samples": 3077,
+          "percent": 88.39779005524862
+        },
+        "humanities": {
+          "samples": 4705,
+          "percent": 71.71094580233793
+        }
+      }
+    },
+    "three_level_rbhn_r64_protect_39_40_42_45_46": {
+      "hif4_scale_levels": "123",
+      "rotation": "rbhn_r64",
+      "gptq": {
+        "damp": 0.03,
+        "act_order_within_group": false
+      },
+      "protected_layers": [
+        39,
+        40,
+        42,
+        45,
+        46
+      ],
+      "quantized_linears": 413,
+      "total_linears": 448,
+      "percent": 80.05269904571999,
+      "loss_pp": 0.8332146417889135,
+      "kl": 0.08132640463465272,
+      "groups": {
+        "stem": {
+          "samples": 3153,
+          "percent": 81.44624167459563
+        },
+        "other": {
+          "samples": 3107,
+          "percent": 82.84518828451883
+        },
+        "social_sciences": {
+          "samples": 3077,
+          "percent": 88.56028599285017
+        },
+        "humanities": {
+          "samples": 4705,
+          "percent": 71.71094580233793
+        }
+      }
+    },
+    "two_level_hisq1024_unprotected": {
+      "hif4_scale_levels": "12",
+      "rotation": "hisq1024",
+      "gptq": {
+        "damp": 0.3,
+        "act_order_within_group": true
+      },
+      "protected_layers": [],
+      "quantized_linears": 448,
+      "total_linears": 448,
+      "percent": 79.21948440393106,
+      "loss_pp": 1.6664292835778411,
+      "kl": 0.13370550284326452,
+      "groups": {
+        "stem": {
+          "samples": 3153,
+          "percent": 81.06565176022835
+        },
+        "other": {
+          "samples": 3107,
+          "percent": 81.91181203733505
+        },
+        "social_sciences": {
+          "samples": 3077,
+          "percent": 87.94280142996425
+        },
+        "humanities": {
+          "samples": 4705,
+          "percent": 70.49946865037194
+        }
+      }
+    },
+    "two_level_hisq1024_protect_39_42_43_45_46_63": {
+      "hif4_scale_levels": "12",
+      "rotation": "hisq1024",
+      "gptq": {
+        "damp": 0.3,
+        "act_order_within_group": true
+      },
+      "protected_layers": [
+        39,
+        42,
+        43,
+        45,
+        46,
+        63
+      ],
+      "quantized_linears": 406,
+      "total_linears": 448,
+      "percent": 79.79632530978493,
+      "loss_pp": 1.0895883777239703,
+      "kl": 0.09999874776714976,
+      "groups": {
+        "stem": {
+          "samples": 3153,
+          "percent": 81.95369489375199
+        },
+        "other": {
+          "samples": 3107,
+          "percent": 82.26585130350821
+        },
+        "social_sciences": {
+          "samples": 3077,
+          "percent": 88.26779330516737
+        },
+        "humanities": {
+          "samples": 4705,
+          "percent": 71.17959617428268
+        }
+      }
+    },
+    "two_level_rbh_r64_protect_41_42_43_44_45_46": {
+      "hif4_scale_levels": "12",
+      "rotation": "rbh_r64",
+      "gptq": {
+        "damp": 0.3,
+        "act_order_within_group": true
+      },
+      "protected_layers": [
+        41,
+        42,
+        43,
+        44,
+        45,
+        46
+      ],
+      "quantized_linears": 406,
+      "total_linears": 448,
+      "percent": 79.87466172909842,
+      "loss_pp": 1.011251958410483,
+      "kl": 0.10900850105256957,
+      "groups": {
+        "stem": {
+          "samples": 3153,
+          "percent": 81.85854741516016
+        },
+        "other": {
+          "samples": 3107,
+          "percent": 82.71644673318313
+        },
+        "social_sciences": {
+          "samples": 3077,
+          "percent": 88.17029574260643
+        },
+        "humanities": {
+          "samples": 4705,
+          "percent": 71.24335812964931
+        }
+      }
+    }
+  },
+  "raw_samples_in_repository": false
+}

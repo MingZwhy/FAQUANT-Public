@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "faquant-public"
 version = "0.1.0"
-description = "Reproducible Qwen3-8B HiF4 W4A4 PTQ and QAD evaluation"
+description = "Reproducible HiF4 W4A4 quantization of Qwen3-8B, Qwen3-32B and Wan2.2-T2V-A14B"
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 license = {file = "LICENSE"}
@@ -35,9 +35,16 @@ faquant-train-qad = "faquant.workflows.train_qad:main"
 faquant-materialize-protection = "faquant.workflows.materialize_protection:main"
 faquant-eval-bf16 = "faquant.workflows.eval_bf16:main"
 faquant-eval-mmlu = "faquant.workflows.eval_mmlu:main"
+faquant-merge-mmlu-shards = "faquant.workflows.merge_mmlu_shards:main"
 faquant-eval-longbench = "faquant.workflows.eval_longbench:main"
 faquant-run-longbench = "faquant.workflows.run_longbench:main"
 faquant-summarize-longbench = "faquant.workflows.summarize_longbench:main"
+faquant-wan22-generate = "faquant.workflows.wan22_generate:main"
+faquant-wan22-run-generation = "faquant.workflows.wan22_run_generation:main"
+faquant-wan22-vbench-eval = "faquant.workflows.wan22_vbench_eval:main"
+faquant-wan22-compare = "faquant.workflows.wan22_compare:main"
+faquant-wan22-gptq = "faquant.workflows.wan22_gptq:main"
+faquant-wan22-qk-smooth = "faquant.workflows.wan22_qk_smooth:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

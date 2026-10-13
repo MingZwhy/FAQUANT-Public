@@ -1,7 +1,7 @@
 """The differentiable core must be the deployed core, not something like it.
 
 ``quantized_eager_attention_forward`` exists so QAD can train against the QK/PV
-quantization the deliverable is measured with.  That is only worth anything if
+quantization the target metric is measured with.  That is only worth anything if
 the two agree numerically, so the claim in the module docstring -- that the
 tiled kernel's recurrence collapses to the single-tile formula once a tile
 covers every key -- is tested here rather than argued.

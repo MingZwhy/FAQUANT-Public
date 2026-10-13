@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 from pathlib import Path
 from statistics import fmean
 
@@ -58,6 +59,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-shards", type=int, default=4)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--markdown", type=Path)
+    parser.add_argument(
+        "--bootstrap",
+        type=int,
+        default=2000,
+        help="Paired bootstrap draws for the 95%% loss intervals (0: none).",
+    )
+    parser.add_argument("--seed", type=int, default=0)
     return parser.parse_args()
 
 
@@ -73,6 +81,36 @@ def result_score(payload: dict, task_key: str) -> float:
     raise KeyError(f"{task_key}: no supported score in {sorted(result)}")
 
 
+def sample_score(sample: dict, task_key: str) -> float:
+    for metric in ("score", "f1", "rougeL", "acc"):
+        if metric in sample:
+            return float(sample[metric]) * 100.0
+    raise KeyError(f"{task_key}: no supported per-sample score in {sorted(sample)}")
+
+
+def bootstrap_intervals(
+    losses: dict[str, list[float]], draws: int, seed: int
+) -> dict[str, list[float]]:
+    """95% intervals of the macro and category losses, resampling within each task."""
+
+    rng = random.Random(seed)
+    samples: dict[str, list[float]] = {"macro": []} | {name: [] for name in CATEGORIES}
+    for _ in range(draws):
+        task_loss = {}
+        for task, values in losses.items():
+            size = len(values)
+            task_loss[task] = sum(values[rng.randrange(size)] for _ in range(size)) / size
+        samples["macro"].append(fmean(task_loss.values()))
+        for name, members in CATEGORIES.items():
+            samples[name].append(fmean(task_loss[task] for task in members))
+
+    def interval(values: list[float]) -> list[float]:
+        values = sorted(values)
+        return [values[int(0.025 * len(values))], values[int(0.975 * len(values)) - 1]]
+
+    return {name: interval(values) for name, values in samples.items()}
+
+
 def render_markdown(summary: dict) -> str:
     lines = [
         "# Official LongBench summary",
@@ -82,6 +120,11 @@ def render_markdown(summary: dict) -> str:
         f"- BF16 macro: **{summary['bf16_macro']:.4f}**",
         f"- Candidate macro: **{summary['candidate_macro']:.4f}**",
         f"- Loss: **{summary['loss_pp']:.4f} pp**",
+    ]
+    if summary.get("loss_ci95"):
+        low, high = summary["loss_ci95"]
+        lines.append(f"- Loss 95% interval: [{low:.4f}, {high:.4f}] pp")
+    lines += [
         "",
         "| Task | BF16 | Candidate | Loss |",
         "|---|---:|---:|---:|",
@@ -97,6 +140,7 @@ def render_markdown(summary: dict) -> str:
 def main() -> None:
     args = parse_args()
     rows = []
+    losses: dict[str, list[float]] = {}
     hash_mismatches = 0
     checkpoint_id = None
     for task, expected_count in TASKS.items():
@@ -135,6 +179,10 @@ def main() -> None:
             reference = bf16_by_id[doc_id]
             for key in ("doc_hash", "prompt_hash", "target_hash"):
                 hash_mismatches += sample.get(key) != reference.get(key)
+        losses[task] = [
+            sample_score(bf16_by_id[doc_id], task_key) - sample_score(by_id[doc_id], task_key)
+            for doc_id in range(expected_count)
+        ]
         candidate_score = weighted_score / observed_count
         bf16_score = result_score(bf16, task_key)
         rows.append(
@@ -160,6 +208,12 @@ def main() -> None:
         }
     bf16_macro = fmean(row["bf16"] for row in rows)
     candidate_macro = fmean(row["candidate"] for row in rows)
+    intervals = (
+        bootstrap_intervals(losses, args.bootstrap, args.seed) if args.bootstrap else {}
+    )
+    for category, values in categories.items():
+        if intervals:
+            values["loss_ci95"] = intervals[category]
     summary = {
         "benchmark": "THUDM LongBench v1 main",
         "checkpoint_id": checkpoint_id,
@@ -171,6 +225,11 @@ def main() -> None:
         "bf16_macro": bf16_macro,
         "candidate_macro": candidate_macro,
         "loss_pp": bf16_macro - candidate_macro,
+        "loss_ci95": intervals.get("macro"),
+        "loss_ci95_method": (
+            f"paired bootstrap, {args.bootstrap} draws, samples resampled within each task"
+            if intervals else None
+        ),
         "hash_mismatches": 0,
         "categories": categories,
         "tasks": rows,

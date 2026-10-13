@@ -24,10 +24,10 @@ from .config import resolve_quant_exempt_modules
 from .hisq_rotation import (
     HiSQRotation,
     apply_hisq_rotation,
-    derive_hisq_rotation,
+    derive_qwen_hisq_rotation,
     precondition_linear_for_hisq_rotation,
-    resolve_hisq_block_size,
 )
+from .offload import move_layer
 from .quantization import fake_quantize, replace_linear_with_fake_quant
 from .smoothquant import smoothquant_input_scale
 
@@ -802,7 +802,14 @@ def gptq_quantize_qwen3(
     """Run layerwise GPTQ while keeping Qwen3's configured attention backend."""
 
     layers = model.model.layers
-    device = next(model.parameters()).device
+    execution_device = getattr(config, "gptq_execution_device", None)
+    offload = execution_device is not None
+    if offload:
+        device = torch.device(execution_device)
+        move_layer(model.model.embed_tokens, device)
+        move_layer(model.model.rotary_emb, device)
+    else:
+        device = next(model.parameters()).device
     dtype = next(model.parameters()).dtype
     nsamples, seqlen = input_ids.shape
     hidden_size = model.config.hidden_size
@@ -908,6 +915,15 @@ def gptq_quantize_qwen3(
         config, "qwen_hisq_rotation_block_size_down_proj", None
     )
     hisq_rotation_seed = int(getattr(config, "qwen_hisq_rotation_seed", 17))
+    hisq_projections = frozenset(getattr(config, "qwen_hisq_rotation_projections", ()) or ())
+    hisq_sharing = str(getattr(config, "qwen_hisq_rotation_sharing", "linear"))
+    hisq_reader_construction = str(getattr(config, "qwen_hisq_reader_construction", "full"))
+    hisq_od_construction = str(getattr(config, "qwen_hisq_od_construction", "full"))
+    hisq_reader_block_size = getattr(config, "qwen_hisq_reader_block_size", None)
+    hisq_o_construction = getattr(config, "qwen_hisq_o_construction", None)
+    hisq_global_seed = getattr(config, "qwen_hisq_global_seed", None)
+    if hisq_global_seed is None:
+        hisq_global_seed = int(getattr(config, "seed", 0))
     smoothquant_absmax: dict[str, torch.Tensor] = {}
     smoothquant_report: dict[str, object] = {}
     hisq_rotation_report: dict[str, object] = {
@@ -917,6 +933,12 @@ def gptq_quantize_qwen3(
         "block_size": hisq_rotation_block_size,
         "down_proj_block_size": hisq_rotation_down_proj_block_size,
         "seed": hisq_rotation_seed,
+        "sharing": hisq_sharing,
+        "global_seed": hisq_global_seed,
+        "reader_construction": hisq_reader_construction,
+        "od_construction": hisq_od_construction,
+        "o_construction": hisq_o_construction,
+        "reader_block_size": hisq_reader_block_size,
         "layers": {},
     }
 
@@ -925,6 +947,8 @@ def gptq_quantize_qwen3(
         # before SmoothQuant or GPTQ changes the model. Explicit attention
         # output QDQ is disabled so o_proj also observes its raw BF16 input.
         for layer_index, layer in enumerate(layers):
+            if offload:
+                move_layer(layer, device)
             handles = []
             for group in groups:
                 for name in group:
@@ -964,6 +988,8 @@ def gptq_quantize_qwen3(
                 attention.faquant_attention_output_quant = original_output_quant
                 for handle in handles:
                     handle.remove()
+            if offload:
+                move_layer(layer, "cpu")
             captured, outputs = outputs, captured
             LOGGER.info(
                 "Qwen SmoothQuant collected layer %d/%d",
@@ -1018,6 +1044,8 @@ def gptq_quantize_qwen3(
         )
     exempt_modules = resolve_quant_exempt_modules(config, len(layers))
     for layer_index, layer in enumerate(layers):
+        if offload:
+            move_layer(layer, device)
         # Drop this layer's exempt projections from the work list. Everything
         # below iterates the filtered groups, so an exempt projection gets no
         # rotation, no Hessian, no quantization and no FakeQuantLinear.
@@ -1042,6 +1070,8 @@ def gptq_quantize_qwen3(
                 outputs[sample_index].copy_(
                     layer(sample.unsqueeze(0), **layer_kwargs)[0]
                 )
+            if offload:
+                move_layer(layer, "cpu")
             captured, outputs = outputs, captured
             LOGGER.info(
                 "Qwen GPTQ left layer %d/%d in BF16 (exempt)",
@@ -1054,20 +1084,22 @@ def gptq_quantize_qwen3(
         if hisq_rotation_enabled:
             for group in layer_groups:
                 for name in group:
+                    if hisq_projections and name.rsplit(".", 1)[-1] not in hisq_projections:
+                        continue
                     key = f"model.layers.{layer_index}.{name}"
                     linear = resolve(layer, name)
-                    rotation = derive_hisq_rotation(
+                    rotation, source = derive_qwen_hisq_rotation(
                         key,
                         linear.in_features,
                         seed=hisq_rotation_seed,
-                        block_size=resolve_hisq_block_size(
-                            key,
-                            linear.in_features,
-                            block_size=hisq_rotation_block_size,
-                            down_proj_block_size=(
-                                hisq_rotation_down_proj_block_size
-                            ),
-                        ),
+                        block_size=hisq_rotation_block_size,
+                        down_proj_block_size=hisq_rotation_down_proj_block_size,
+                        sharing=hisq_sharing,
+                        global_seed=hisq_global_seed,
+                        reader_construction=hisq_reader_construction,
+                        od_construction=hisq_od_construction,
+                        reader_block_size=hisq_reader_block_size,
+                        o_construction=hisq_o_construction,
                         device=linear.weight.device,
                     )
                     layer_rotations[name] = rotation
@@ -1079,6 +1111,7 @@ def gptq_quantize_qwen3(
                         "block_size": rotation.block_size,
                         "blocks": linear.in_features // rotation.block_size,
                         "layer_seed": rotation.layer_seed,
+                        "source": source,
                     }
 
         quantizers = {
@@ -1287,7 +1320,7 @@ def gptq_quantize_qwen3(
                         / scale.to(linear.weight.device).unsqueeze(0)
                     )
                     linear.faquant_input_scale = scale
-                if hisq_rotation_enabled:
+                if name in rotated_weight_overrides:
                     quantizer.set_weight_override(rotated_weight_overrides[name])
                 stats[f"model.layers.{layer_index}.{name}"] = quantizer.quantize(
                     quant_format=config.quant_format,
@@ -1308,8 +1341,13 @@ def gptq_quantize_qwen3(
 
         for sample_index, sample in enumerate(captured):
             outputs[sample_index].copy_(layer(sample.unsqueeze(0), **layer_kwargs)[0])
+        if offload:
+            move_layer(layer, "cpu")
         captured, outputs = outputs, captured
         LOGGER.info("Qwen GPTQ calibrated layer %d/%d", layer_index + 1, len(layers))
+    if offload:
+        move_layer(model.model.embed_tokens, "cpu")
+        move_layer(model.model.rotary_emb, "cpu")
     if smoothquant_enabled:
         model.faquant_smoothquant_stats = smoothquant_report
     if hisq_rotation_enabled:

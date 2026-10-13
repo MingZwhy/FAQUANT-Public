@@ -351,7 +351,7 @@ def test_weight_ste_is_forward_exact_when_master_drifts_far_off_grid() -> None:
     weights away from their grid point until that stops holding for a few
     elements, and then the training forward and the module `to_inference`
     materializes disagree by an ULP.  That is a train/deploy mismatch, and
-    scripts/eval_qwen_hif4_qad.py refuses such a checkpoint outright: step 750 of
+    the evaluation workflow refuses such a checkpoint outright: step 750 of
     the 1250-step seed-2718 run lost both of its readouts to a 2.5 logit gap
     grown from 44 elements in three early-layer projections.
 

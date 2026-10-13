@@ -2,11 +2,11 @@
 
 QAD trains 252 HiF4 linears while the attention core runs exact; deployment
 then quantizes the QK and PV products on top.  Measuring both readouts on the
-same checkpoints (doc section 11) showed what that costs: the attention chain
+same checkpoints showed what that costs: the attention chain
 is 1.05 pp of the 2.29 pp gap at the PTQ start, and across fourteen checkpoints
 its size wanders between 0.39 and 1.45 pp -- a spread larger than everything
 QAD wins.  Training cannot damp what it cannot see, so half the noise on the
-deliverable metric is structural.
+target metric is structural.
 
 ``simulated_flash_attention_forward`` is the deployed core, but it cannot be
 trained through: it accumulates its running max, denominator and output in
@@ -44,6 +44,7 @@ import torch
 from torch import nn
 
 from .config import PV_NORMALIZER_MODES
+from .hif4 import HIF4_ATTN_OPERAND_SCALE_LEVELS as LEVELS
 from .simulated_flash_attention import (
     _fake_quantize_tail,
     _repeat_kv,
@@ -154,15 +155,21 @@ def quantized_eager_attention_forward(
     # groups only span head_dim, so repeating afterwards is bitwise identical
     # and the repeated copies cost nothing extra to quantize.
     key_operand = (
-        _fake_quantize_tail(key, **qk_quant_kwargs) if qk_quant else key
+        _fake_quantize_tail(key, levels=LEVELS["k"], **qk_quant_kwargs)
+        if qk_quant
+        else key
     )
     value_operand = (
-        _fake_quantize_tail(value, **pv_quant_kwargs) if pv_quant else value
+        _fake_quantize_tail(value, levels=LEVELS["v"], **pv_quant_kwargs)
+        if pv_quant
+        else value
     )
     key_operand = _repeat_kv(key_operand, repeats)
     value_operand = _repeat_kv(value_operand, repeats)
     query_operand = (
-        _fake_quantize_tail(query, **qk_quant_kwargs) if qk_quant else query
+        _fake_quantize_tail(query, levels=LEVELS["q"], **qk_quant_kwargs)
+        if qk_quant
+        else query
     )
 
     is_causal = kwargs.get("is_causal")
@@ -198,7 +205,7 @@ def quantized_eager_attention_forward(
     probabilities = torch.exp(scores - row_max)
 
     probability_operand = (
-        _fake_quantize_tail(probabilities, **pv_quant_kwargs)
+        _fake_quantize_tail(probabilities, levels=LEVELS["p"], **pv_quant_kwargs)
         if pv_quant
         else probabilities
     )

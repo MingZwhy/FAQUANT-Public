@@ -94,6 +94,9 @@ class ExperimentConfig:
     # Costs one calibration forward pass per group instead of one per layer.
     gptq_sequential_groups: bool = False
     gptq_propagate_fake_activations: bool = True
+    # Set for a CPU-resident model: GPTQ moves each decoder layer onto this
+    # device only while it is being calibrated.
+    gptq_execution_device: str | None = None
     qad_capture_weight_metadata: bool = False
     qad_capture_latent_master: bool = False
     qwen_smoothquant: bool = False
@@ -109,6 +112,35 @@ class ExperimentConfig:
     # also made the 4096-wide inputs full width and scored slightly worse.
     qwen_hisq_rotation_block_size_down_proj: int | None = None
     qwen_hisq_rotation_seed: int = 17
+    # Only these projections take the HiSQ rotation (empty: all seven). With the global
+    # residual rotation folded into the weights instead (rotation="hadamard",
+    # online_hadamard=False), the remaining online ones are o_proj and down_proj, whose
+    # inputs no rotation shared by the network reaches.
+    qwen_hisq_rotation_projections: tuple[str, ...] = ()
+    # Which residual readers share one HiSQ rotation. "linear": each its own, the
+    # HiSQRot4 rule. "norm": q/k/v share one per layer and gate/up another, one per
+    # RMSNorm. "global": every q/k/v/gate/up in the network shares the rotation the
+    # global residual rotation would fold in (same key and seed), but applied online,
+    # so RMSNorm's gamma stays in the activation. o_proj and down_proj always keep
+    # their own.
+    qwen_hisq_rotation_sharing: str = "linear"
+    # Seed of the rotation the readers share under sharing="global"; None uses seed, which
+    # gives the residual rotation the global rotation folds in.
+    qwen_hisq_global_seed: int | None = None
+    # How much of HiSQRot4's sign -> permutation -> block-Hadamard the readers and
+    # o_proj/down_proj take: "full", "signs" (no permutation) or "plain" (the block
+    # Hadamard alone, the same matrix for every projection of a width).
+    qwen_hisq_reader_construction: str = "full"
+    qwen_hisq_od_construction: str = "full"
+    # o_proj's construction when it differs from down_proj's: its signs fold into
+    # v_proj, but a permutation across heads does not.
+    qwen_hisq_o_construction: str | None = None
+    # The readers' Hadamard block when it differs from qwen_hisq_rotation_block_size.
+    qwen_hisq_reader_block_size: int | None = None
+    # Fold each decoder layer's RMSNorm gamma into the q/k/v and gate/up weights and
+    # set it to one, as the global residual rotation does before rotating: the
+    # readers then quantize the normalized activation and their weights carry gamma.
+    qwen_fuse_reader_norms: bool = False
     # Fold a per-head Hadamard through v_proj rows and o_proj columns. Free at
     # runtime, and the only thing in the HiSQ recipe that touches the
     # head-internal geometry of V and of the attention output.
@@ -236,6 +268,22 @@ class ExperimentConfig:
                     "Qwen SmoothQuant is currently isolated to no-rotation "
                     "experiments"
                 )
+        if self.qwen_hisq_rotation_sharing not in ("linear", "norm", "global"):
+            raise ValueError("qwen_hisq_rotation_sharing must be linear, norm or global")
+        if self.qwen_hisq_rotation_sharing != "linear" and not self.qwen_hisq_input_rotation:
+            raise ValueError("qwen_hisq_rotation_sharing needs qwen_hisq_input_rotation")
+        for construction in (
+            self.qwen_hisq_reader_construction,
+            self.qwen_hisq_od_construction,
+            self.qwen_hisq_o_construction or "full",
+        ):
+            if construction not in ("full", "signs", "plain"):
+                raise ValueError("HiSQ constructions must be full, signs or plain")
+        reader_block = self.qwen_hisq_reader_block_size
+        if reader_block is not None and (reader_block <= 0 or reader_block & (reader_block - 1)):
+            raise ValueError("qwen_hisq_reader_block_size must be a positive power of two")
+        if self.qwen_fuse_reader_norms and self.rotation != "none":
+            raise ValueError("the global residual rotation already folds the RMSNorm scales")
         if self.qwen_hisq_input_rotation:
             if (
                 self.quant_format != "hif4"
@@ -244,10 +292,20 @@ class ExperimentConfig:
                 raise ValueError(
                     "Qwen HiSQ rotation ablation requires all-linear HiF4 quantization"
                 )
-            if self.rotation != "none":
+            projections = set(self.qwen_hisq_rotation_projections)
+            if not projections <= {
+                "q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"
+            }:
+                raise ValueError(f"unknown HiSQ projections {sorted(projections)}")
+            if self.rotation != "none" and not (
+                projections
+                and projections <= {"o_proj", "down_proj"}
+                and not self.online_hadamard
+            ):
                 raise ValueError(
-                    "Qwen per-linear HiSQ rotation and global residual rotation "
-                    "are separate ablations"
+                    "Qwen per-linear HiSQ rotation and global residual rotation are "
+                    "separate ablations, except HiSQ on o_proj/down_proj alone without "
+                    "the online down_proj Hadamard"
                 )
             if self.qwen_smoothquant:
                 raise ValueError(

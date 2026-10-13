@@ -85,6 +85,33 @@ def parse_args() -> argparse.Namespace:
         help="Comma-separated short LongBench names; empty selects all 21.",
     )
     parser.add_argument("--num-shards", type=int, default=NUM_SHARDS)
+    parser.add_argument(
+        "--rotation",
+        default="hisq1024",
+        help="Build mode of --checkpoint (faquant.qad.QAD_ROTATIONS).",
+    )
+    parser.add_argument(
+        "--gpus-per-job",
+        type=int,
+        default=1,
+        help="GPUs each shard splits its layers over (Qwen3-32B with 40k-token prompts: 3).",
+    )
+    parser.add_argument(
+        "--inference-load",
+        action="store_true",
+        help="Load a step-0 PTQ checkpoint straight into inference linears.",
+    )
+    parser.add_argument(
+        "--prefill-chunk-tokens",
+        type=int,
+        default=0,
+        help="Prefill long prompts in chunks of this many tokens (bitwise identical to one pass).",
+    )
+    parser.add_argument(
+        "--hif4-scale-levels",
+        choices=("123", "12", "13"),
+        help="HiF4 variant of the checkpoint; sets FAQUANT_HIF4_{,ACT_,ATTN_}SCALE_LEVELS.",
+    )
     return parser.parse_args()
 
 
@@ -151,6 +178,12 @@ def write_status(path: Path, payload: dict[str, object]) -> None:
 def main() -> None:
     args = parse_args()
     gpus = [int(item) for item in args.gpus.split(",") if item.strip()]
+    if args.gpus_per_job <= 0 or len(gpus) < args.gpus_per_job:
+        raise ValueError("--gpus must list at least --gpus-per-job GPUs")
+    groups = [
+        ",".join(str(gpu) for gpu in gpus[i:i + args.gpus_per_job])
+        for i in range(0, len(gpus) - args.gpus_per_job + 1, args.gpus_per_job)
+    ]
     expected_exempt_layers = layer_list(args.expected_exempt_layers)
     qk_mxfp8_layers = layer_list(args.qk_mxfp8_layers)
     all_task_names = frozenset(name for name, _count, _cost in TASKS)
@@ -180,6 +213,10 @@ def main() -> None:
     env_base = os.environ.copy()
     env_base.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
     env_base["LM_EVAL_TRUNCATION_MODE"] = args.truncation_mode
+    if args.hif4_scale_levels:
+        for name in ("FAQUANT_HIF4_SCALE_LEVELS", "FAQUANT_HIF4_ACT_SCALE_LEVELS",
+                     "FAQUANT_HIF4_ATTN_SCALE_LEVELS"):
+            env_base[name] = args.hif4_scale_levels
 
     planned = jobs(selected_tasks, args.num_shards)
     pending = []
@@ -203,8 +240,8 @@ def main() -> None:
             continue
         pending.append((name, index, start, end, cost, output))
 
-    running: dict[int, subprocess.Popen[str]] = {}
-    assigned: dict[int, str] = {}
+    running: dict[str, subprocess.Popen[str]] = {}
+    assigned: dict[str, str] = {}
     failed: list[str] = []
     started_at = time.time()
     queue = list(pending)
@@ -217,6 +254,7 @@ def main() -> None:
                 "expected_exempt_layers": expected_exempt_layers,
                 "qk_mxfp8_layers": qk_mxfp8_layers,
                 "truncation_mode": args.truncation_mode,
+                "rotation": args.rotation,
                 "quantization_scope": "prefill_only",
                 "decode_precision": "bfloat16",
                 "decode_reuses_quantized_prefill_kv_cache": True,
@@ -239,8 +277,8 @@ def main() -> None:
             tag = assigned.pop(gpu)
             if proc.returncode != 0:
                 failed.append(f"{tag}:exit{proc.returncode}")
-        while queue and len(running) < len(gpus):
-            free = next(gpu for gpu in gpus if gpu not in running)
+        while queue and len(running) < len(groups):
+            free = next(group for group in groups if group not in running)
             name, index, start, end, _cost, output = queue.pop(0)
             task_key = f"faquant_longbench_{name}"
             tag = f"{task_key}_shard_{index}"
@@ -254,7 +292,7 @@ def main() -> None:
                 "--checkpoint",
                 str(args.checkpoint),
                 "--rotation",
-                "hisq1024",
+                args.rotation,
                 "--tasks",
                 task_key,
                 "--qk-matmul-quant",
@@ -282,6 +320,12 @@ def main() -> None:
             ]
             if name not in RAW_PROMPT_TASKS:
                 cmd.append("--apply-chat-template")
+            if args.gpus_per_job > 1:
+                cmd.extend(["--layer-devices", str(args.gpus_per_job)])
+            if args.inference_load:
+                cmd.append("--inference-load")
+            if args.prefill_chunk_tokens:
+                cmd.extend(["--prefill-chunk-tokens", str(args.prefill_chunk_tokens)])
             if qk_mxfp8_layers:
                 cmd.extend(
                     [
@@ -290,7 +334,7 @@ def main() -> None:
                     ]
                 )
             env = env_base.copy()
-            env["CUDA_VISIBLE_DEVICES"] = str(free)
+            env["CUDA_VISIBLE_DEVICES"] = free
             handle = subprocess.Popen(
                 cmd,
                 env=env,

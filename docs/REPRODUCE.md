@@ -55,8 +55,12 @@ python scripts/prepare_ptq.py \
   --gptq-calibration-seed 0 \
   --gptq-damp 0.01 \
   --gptq-damp-overrides o_proj=0.03,down_proj=0.03 \
-  --gptq-sequential-groups
+  --gptq-sequential-groups \
+  --validation-data "$DATA_DIR/qad_redpajama/validation.jsonl"
 ```
+
+The validation file is used only for the step-0 parity check between the
+training and inference modules.
 
 ## 3. Calibrate Smooth-QK
 
@@ -215,3 +219,10 @@ sha256sum "$OUTPUT_DIR/qwen3-8b-hif4-l16-17-18"/*.safetensors
 ```
 
 Compare the values with `results/final_metrics.json`.
+
+## Other models
+
+- Qwen3-32B PTQ, layer protection, partially offline rotation, MMLU shards,
+  and LongBench: [Qwen3-32B](QWEN3_32B.md#reproduce).
+- Wan2.2-T2V-A14B generation, VBench evaluation, GPTQ, and Smooth-QK:
+  [Wan2.2](WAN22.md#reproduce).

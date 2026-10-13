@@ -17,7 +17,8 @@ scale per 64 values plus two levels of one-bit micro-exponents.
 PTQ is applied before QAD:
 
 1. Fold a per-head Hadamard into V/O weights.
-2. Apply deterministic per-linear HiSQ rotations with block size 1024.
+2. Apply deterministic per-linear HiSQ rotations with block size 1024
+   ([Rotation](ROTATION.md) gives the evidence for this choice).
 3. Collect WikiText-2 calibration activations (128 sequences × 2048 tokens).
 4. Run GPTQ with 1% base damping, 3% damping for `o_proj` and `down_proj`, and
    layer-internal sequential groups.
@@ -90,3 +91,12 @@ Only prefill is quantized:
 The BF16 decoder keeps mathematically equivalent basis transforms so that its
 queries and outputs are compatible with the quantized-prefill cache, but it
 does not apply W4/A4 or QK/PV quantization.
+
+## 6. Other models
+
+- [Qwen3-32B](QWEN3_32B.md): the same PTQ recipe with whole-layer protection
+  and no QAD, for three-level and two-level HiF4.
+- [Rotation](ROTATION.md): a partially offline block rotation that replaces
+  HiSQ1024 with four online transforms per layer.
+- [Wan2.2](WAN22.md): HiF4 on the DiT Linears and attention QK/PV of
+  Wan2.2-T2V-A14B, evaluated on VBench.

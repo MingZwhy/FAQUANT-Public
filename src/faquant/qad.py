@@ -9,6 +9,43 @@ from .config import ExperimentConfig
 from .qad_quantization import QATConversionStats, enable_hif4_qat
 from .qwen3 import prepare_model
 
+QAD_ROTATIONS = (
+    "none", "hadamard", "hisq1024", "shared_hisq_od",
+    "hisq_od", "hisq_norm", "hisq_global", "hisq_global_fused", "fused_od",
+    "sbh_readers", "bh_readers", "bh256_readers", "bh64_readers", "bh_all",
+    "bh32_readers", "bh16_readers", "bh_all_r64", "bh64_all", "rbh_r64", "rbhn_r64",
+)
+# Ablations of HiSQ on the residual readers (q/k/v, gate/up); o_proj and down_proj
+# keep their per-linear rotations unless noted. hisq_od: readers unrotated.
+# hisq_norm: one rotation per RMSNorm and layer. hisq_global: shared_hisq_od's
+# network-wide rotation, applied online so RMSNorm's gamma stays in the activation.
+# hisq_global_fused: the same with gamma folded into the weights. fused_od: gamma
+# folded, readers unrotated. sbh_readers: hisq_global without its permutation, so
+# its signs fold into every gamma and only the block Hadamard runs online.
+# bh*_readers: the block Hadamard alone (1024, 256, 64, 32 or 16 wide). bh_all: the
+# 1024 block Hadamard alone on all seven projections; bh_all_r64 narrows the readers'
+# block to 64 and bh64_all every block. rbh_r64: bh_all_r64's online work with the part
+# of HiSQ's randomization that folds offline put back -- the readers' network-wide signs
+# and permutation (into gamma and the residual stream), o_proj's signs (into v_proj) and
+# down_proj's signs and permutation (into the gate/up rows). rbhn_r64: the same with one sign
+# and permutation per RMSNorm instead of one per network; the signs fold into each gamma and
+# the permutation into the RMSNorm's output order.
+_READER_SHARING = {
+    "hisq_norm": "norm", "hisq_global": "global", "hisq_global_fused": "global",
+    "sbh_readers": "global", "rbh_r64": "global", "rbhn_r64": "norm",
+}
+_O_CONSTRUCTION = {"rbh_r64": "signs", "rbhn_r64": "signs"}
+_READER_CONSTRUCTION = {
+    "sbh_readers": "signs", "bh_readers": "plain", "bh256_readers": "plain",
+    "bh64_readers": "plain", "bh32_readers": "plain", "bh16_readers": "plain",
+    "bh_all": "plain", "bh_all_r64": "plain", "bh64_all": "plain",
+}
+_READER_BLOCK = {
+    "bh256_readers": 256, "bh64_readers": 64, "bh32_readers": 32, "bh16_readers": 16,
+    "bh_all_r64": 64, "bh64_all": 64, "rbh_r64": 64, "rbhn_r64": 64,
+}
+_PLAIN_OD = ("bh_all", "bh_all_r64", "bh64_all")
+
 
 @dataclass(frozen=True)
 class QADPreparationStats:
@@ -26,6 +63,7 @@ def qwen3_hif4_qad_config(
     hisq_block_size: int = 1024,
     hisq_down_proj_block_size: int | None = None,
     hisq_seed: int = 17,
+    hisq_global_seed: int | None = None,
     value_head_rotation: bool = False,
     capture_latent_master: bool = False,
     weight_quant: str = "gptq",
@@ -53,8 +91,8 @@ def qwen3_hif4_qad_config(
     had nothing done to it but direct-cast quantization.
     """
 
-    if rotation not in ("none", "hadamard", "hisq1024"):
-        raise ValueError("QAD rotation must be 'none', 'hadamard', or 'hisq1024'")
+    if rotation not in QAD_ROTATIONS:
+        raise ValueError(f"QAD rotation must be one of {QAD_ROTATIONS}")
     if weight_quant not in ("gptq", "rtn"):
         raise ValueError("QAD weight_quant must be 'gptq' or 'rtn'")
     if capture_latent_master and weight_quant != "gptq":
@@ -64,8 +102,11 @@ def qwen3_hif4_qad_config(
             "Smooth-QK scales only act on quantized Q/K, so they need "
             "deployed_attention=True during calibration"
         )
-    global_rotation = "hadamard" if rotation == "hadamard" else "none"
-    hisq_rotation = rotation == "hisq1024"
+    # shared_hisq_od: one residual rotation shared by the network and the V/O head fold, both
+    # folded into the weights, plus hisq1024's per-linear rotations of o_proj and down_proj,
+    # whose inputs no shared rotation reaches.
+    global_rotation = "hadamard" if rotation in ("hadamard", "shared_hisq_od") else "none"
+    hisq_rotation = rotation not in ("none", "hadamard")
     # Calibrating under the deployed attention core. Historically GPTQ ran with
     # exact attention, so every Hessian downstream of an attention block -- o_proj
     # first, then every later layer -- was built from activations the deployed
@@ -106,9 +147,21 @@ def qwen3_hif4_qad_config(
         qad_capture_weight_metadata=True,
         qad_capture_latent_master=capture_latent_master,
         qwen_hisq_input_rotation=hisq_rotation,
-        qwen_hisq_rotation_block_size=hisq_block_size,
+        qwen_hisq_rotation_block_size=64 if rotation == "bh64_all" else hisq_block_size,
         qwen_hisq_rotation_block_size_down_proj=hisq_down_proj_block_size,
         qwen_hisq_rotation_seed=hisq_seed,
+        qwen_hisq_rotation_projections=(
+            ("o_proj", "down_proj")
+            if rotation in ("shared_hisq_od", "hisq_od", "fused_od")
+            else ()
+        ),
+        qwen_hisq_rotation_sharing=_READER_SHARING.get(rotation, "linear"),
+        qwen_hisq_global_seed=hisq_global_seed,
+        qwen_hisq_reader_construction=_READER_CONSTRUCTION.get(rotation, "full"),
+        qwen_hisq_od_construction="plain" if rotation in _PLAIN_OD else "full",
+        qwen_hisq_o_construction=_O_CONSTRUCTION.get(rotation),
+        qwen_hisq_reader_block_size=_READER_BLOCK.get(rotation),
+        qwen_fuse_reader_norms=rotation in ("hisq_global_fused", "fused_od"),
         qwen_value_head_rotation=value_head_rotation,
         qwen_quant_exempt_layers=tuple(quant_exempt_layers),
         qwen_quant_exempt_modules=tuple(quant_exempt_modules),
@@ -173,8 +226,8 @@ def prepare_qad_teacher(
     unrotated avoids BF16 numerical drift in the authoritative logit target.
     """
 
-    if rotation not in ("none", "hadamard", "hisq1024"):
-        raise ValueError("QAD rotation must be 'none', 'hadamard', or 'hisq1024'")
+    if rotation not in QAD_ROTATIONS:
+        raise ValueError(f"QAD rotation must be one of {QAD_ROTATIONS}")
     model.requires_grad_(False)
     model.eval()
     model.config.use_cache = False

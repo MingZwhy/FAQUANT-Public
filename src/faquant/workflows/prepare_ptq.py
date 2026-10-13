@@ -9,7 +9,8 @@ import json
 import logging
 import subprocess
 import time
-from dataclasses import asdict
+from contextlib import nullcontext
+from dataclasses import asdict, replace
 from pathlib import Path
 
 import torch
@@ -20,8 +21,10 @@ from faquant.gptq import (
     calibration_tokens,
     calibration_tokens_from_jsonl,
 )
+from faquant.hif4 import HIF4_ACT_SCALE_LEVELS, HIF4_SCALE_LEVELS
 from faquant.qad_data import AssistantOnlyDataCollator, QADJsonlDataset
-from faquant.qad import qwen3_hif4_qad_config
+from faquant.qad import QAD_ROTATIONS, qwen3_hif4_qad_config
+from faquant.offload import layerwise_execution
 from faquant.qad_quantization import (
     collect_hif4_qat_master_grid_stats,
     enable_hif4_qat,
@@ -36,8 +39,28 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument(
         "--rotation",
-        choices=("hadamard", "none", "hisq1024"),
+        choices=QAD_ROTATIONS,
         default="hadamard",
+        help=(
+            "hadamard: global residual + V/O head rotations folded into the weights, "
+            "plus an online Hadamard before down_proj; hisq1024: per-linear input "
+            "rotations (online); shared_hisq_od: the folded global residual + V/O "
+            "rotations, with hisq1024's rotations kept on o_proj and down_proj only. "
+            "The other hisq_*/fused_* modes ablate HiSQ on q/k/v and gate/up "
+            "(see faquant.qad)."
+        ),
+    )
+    parser.add_argument(
+        "--hisq-seed",
+        type=int,
+        default=17,
+        help="Seed of the HiSQ rotations; the saved signs and permutations carry it.",
+    )
+    parser.add_argument(
+        "--hisq-global-seed",
+        type=int,
+        default=None,
+        help="Seed of the rotation the readers share in the global modes (default: --seed).",
     )
     parser.add_argument(
         "--weight-quant",
@@ -52,7 +75,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--value-head-rotation",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=False,
         help=(
             "Fold a per-head Hadamard through v_proj and o_proj before HiSQ and "
             "GPTQ. Free at runtime; conditions V and the attention output, which "
@@ -267,6 +291,19 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument("--device", default="cuda:0")
+    parser.add_argument(
+        "--device-map",
+        choices=("single", "auto", "offload"),
+        default="single",
+        help=(
+            "'single' keeps the whole model on --device. 'auto' splits the "
+            "decoder layers across every visible GPU; --device must then be "
+            "the first visible GPU, which holds the embeddings and the GPTQ "
+            "calibration buffers. 'offload' keeps the model in CPU memory and "
+            "moves one decoder layer at a time onto --device, so a model that "
+            "does not fit one card still needs only one."
+        ),
+    )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--max-shard-size", default="4GB")
     parser.add_argument(
@@ -283,6 +320,23 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(8 << 20), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def code_revision() -> str:
+    # Copies of the code may lack .git (an unpacked archive, for example);
+    # failing here would throw away a finished build at the very last step.
+    try:
+        return subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        snapshot = Path("SNAPSHOT.txt")
+        if snapshot.exists():
+            return snapshot.read_text(encoding="utf-8").strip()
+        return "unknown"
 
 
 def main() -> None:
@@ -316,9 +370,14 @@ def main() -> None:
         local_files_only=True,
         dtype=torch.bfloat16,
         attn_implementation="flash_attention_2",
-        device_map={"": args.device},
+        device_map={
+            "single": {"": args.device},
+            "auto": "auto",
+            "offload": {"": "cpu"},
+        }[args.device_map],
         low_cpu_mem_usage=True,
     )
+    offload = args.device_map == "offload"
     if args.weight_quant == "rtn":
         # RTN reads nothing but the weights, so there is no calibration set to
         # build and no per-layer Hessian to accumulate: the ~490 s GPTQ spends
@@ -445,6 +504,8 @@ def main() -> None:
         rotation=args.rotation,
         value_head_rotation=args.value_head_rotation,
         hisq_down_proj_block_size=args.hisq_down_proj_block_size,
+        hisq_seed=args.hisq_seed,
+        hisq_global_seed=args.hisq_global_seed,
         gptq_nsamples=args.gptq_nsamples,
         gptq_seqlen=args.gptq_seqlen,
         seed=args.seed,
@@ -466,8 +527,13 @@ def main() -> None:
         deployed_attention=args.calibration_deployed_attention,
         qk_smooth_scales=args.calibration_qk_smooth_scales,
     )
+    if offload:
+        config = replace(config, gptq_execution_device=args.device)
     prepare_model(model, config, calibration_input_ids=calibration)
-    with torch.no_grad():
+    execute = (
+        (lambda: layerwise_execution(model, args.device)) if offload else nullcontext
+    )
+    with torch.no_grad(), execute():
         inference_logits = model(
             input_ids=parity_batch["input_ids"],
             attention_mask=parity_batch["attention_mask"],
@@ -476,7 +542,7 @@ def main() -> None:
     with torch.inference_mode(False):
         qat = enable_hif4_qat(model)
     model.eval()
-    with torch.no_grad():
+    with torch.no_grad(), execute():
         qat_logits = model(
             input_ids=parity_batch["input_ids"],
             attention_mask=parity_batch["attention_mask"],
@@ -488,7 +554,9 @@ def main() -> None:
     if max_abs != 0.0:
         raise RuntimeError(f"QAD initialization parity failed: max_abs={max_abs}")
     tensor_stats = materialize_training_tensors(model)
-    master_grid_stats = collect_hif4_qat_master_grid_stats(model)
+    master_grid_stats = collect_hif4_qat_master_grid_stats(
+        model, device=args.device if offload else None
+    )
     # Which scale each block ended up on. Without this the only readout is
     # whether the shards hash differently from the reference build, which says
     # nothing about how often the search moved or in which direction.
@@ -511,10 +579,16 @@ def main() -> None:
         "model": args.model,
         "rotation": args.rotation,
         "value_head_rotation": args.value_head_rotation,
+        # Read back by load_qad_inference_checkpoint, which refuses to run the
+        # checkpoint's activations and attention in a different HiF4 variant.
+        "hif4_scale_levels": HIF4_SCALE_LEVELS,
+        "hif4_act_scale_levels": HIF4_ACT_SCALE_LEVELS,
         # Read back by load_qad_student_checkpoint: the saved permutation and
         # signs look identical for every block size, so this is the only record
         # of which Hadamard the runtime has to apply.
         "hisq_down_proj_block_size": args.hisq_down_proj_block_size,
+        "hisq_seed": args.hisq_seed,
+        "hisq_global_seed": args.hisq_global_seed,
         "quant_exempt_layers": list(exempt_layers),
         "quant_exempt_modules": list(exempt_modules),
         "qk_matmul_exempt_layers": list(qk_matmul_exempt_layers),
@@ -582,12 +656,8 @@ def main() -> None:
         "training_tensors": asdict(tensor_stats),
         "master_grid": asdict(master_grid_stats),
         "elapsed_seconds": time.time() - started,
-        "git_commit": subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip(),
+        "device_map": args.device_map,
+        "git_commit": code_revision(),
         "shards": {
             path.name: {"bytes": path.stat().st_size, "sha256": sha256(path)}
             for path in shards

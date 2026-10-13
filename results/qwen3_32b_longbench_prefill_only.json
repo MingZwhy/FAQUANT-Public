@@ -1,0 +1,674 @@
+{
+  "model": "Qwen/Qwen3-32B",
+  "benchmark": "THUDM LongBench v1 main",
+  "source_commit": "2e00731f8d0bff23dc4325161044d0ed8af94c1e",
+  "tasks": 21,
+  "samples": 4750,
+  "max_context_length": 40960,
+  "truncation": "middle",
+  "decoding": "greedy",
+  "quantization_scope": "prefill_only",
+  "first_generated_token": "quantized",
+  "decode_precision": "bfloat16",
+  "reuse_quantized_prefill_kv_cache": true,
+  "loss_ci95_method": "paired bootstrap, samples resampled within each task",
+  "bf16": {
+    "macro": 44.9224,
+    "categories": {
+      "single_document_qa": 47.835,
+      "multi_document_qa": 45.865,
+      "summarization": 24.1275,
+      "few_shot_learning": 56.285,
+      "synthetic": 72.0,
+      "code": 15.46
+    },
+    "task_results": {
+      "narrativeqa": 31.35,
+      "qasper": 45.55,
+      "multifieldqa_en": 49.92,
+      "multifieldqa_zh": 64.52,
+      "hotpotqa": 59.41,
+      "2wikimqa": 55.42,
+      "musique": 39.43,
+      "dureader": 29.2,
+      "gov_report": 33.16,
+      "qmsum": 23.8,
+      "multi_news": 25.28,
+      "vcsum": 14.27,
+      "trec": 71.5,
+      "triviaqa": 70.88,
+      "samsum": 37.76,
+      "lsht": 45.0,
+      "passage_count": 16.5,
+      "passage_retrieval_en": 100.0,
+      "passage_retrieval_zh": 99.5,
+      "lcc": 12.53,
+      "repobench-p": 18.39
+    }
+  },
+  "configurations": {
+    "three_level_hisq1024_protect_35_41_42_45_46": {
+      "hif4_scale_levels": "123",
+      "rotation": "hisq1024",
+      "protected_layers": [
+        35,
+        41,
+        42,
+        45,
+        46
+      ],
+      "macro": 45.1224,
+      "loss_pp": -0.2,
+      "loss_ci95": [
+        -0.7482,
+        0.3254
+      ],
+      "categories": {
+        "single_document_qa": {
+          "score": 47.2575,
+          "loss_pp": 0.5775,
+          "loss_ci95": [
+            -0.4409,
+            1.5659
+          ]
+        },
+        "multi_document_qa": {
+          "score": 46.1925,
+          "loss_pp": -0.3275,
+          "loss_ci95": [
+            -1.6673,
+            1.1014
+          ]
+        },
+        "summarization": {
+          "score": 24.145,
+          "loss_pp": -0.0175,
+          "loss_ci95": [
+            -0.2419,
+            0.2134
+          ]
+        },
+        "few_shot_learning": {
+          "score": 57.3975,
+          "loss_pp": -1.1125,
+          "loss_ci95": [
+            -2.892,
+            0.7402
+          ]
+        },
+        "synthetic": {
+          "score": 71.3333,
+          "loss_pp": 0.6667,
+          "loss_ci95": [
+            -0.8333,
+            2.1667
+          ]
+        },
+        "code": {
+          "score": 16.8,
+          "loss_pp": -1.34,
+          "loss_ci95": [
+            -2.236,
+            -0.472
+          ]
+        }
+      },
+      "task_results": {
+        "narrativeqa": {
+          "score": 30.37,
+          "loss_pp": 0.98
+        },
+        "qasper": {
+          "score": 44.77,
+          "loss_pp": 0.78
+        },
+        "multifieldqa_en": {
+          "score": 51.35,
+          "loss_pp": -1.43
+        },
+        "multifieldqa_zh": {
+          "score": 62.54,
+          "loss_pp": 1.98
+        },
+        "hotpotqa": {
+          "score": 58.43,
+          "loss_pp": 0.98
+        },
+        "2wikimqa": {
+          "score": 56.04,
+          "loss_pp": -0.62
+        },
+        "musique": {
+          "score": 40.45,
+          "loss_pp": -1.02
+        },
+        "dureader": {
+          "score": 29.85,
+          "loss_pp": -0.65
+        },
+        "gov_report": {
+          "score": 33.3,
+          "loss_pp": -0.14
+        },
+        "qmsum": {
+          "score": 23.9,
+          "loss_pp": -0.1
+        },
+        "multi_news": {
+          "score": 25.31,
+          "loss_pp": -0.03
+        },
+        "vcsum": {
+          "score": 14.07,
+          "loss_pp": 0.2
+        },
+        "trec": {
+          "score": 72.0,
+          "loss_pp": -0.5
+        },
+        "triviaqa": {
+          "score": 69.26,
+          "loss_pp": 1.62
+        },
+        "samsum": {
+          "score": 40.33,
+          "loss_pp": -2.57
+        },
+        "lsht": {
+          "score": 48.0,
+          "loss_pp": -3.0
+        },
+        "passage_count": {
+          "score": 15.0,
+          "loss_pp": 1.5
+        },
+        "passage_retrieval_en": {
+          "score": 99.5,
+          "loss_pp": 0.5
+        },
+        "passage_retrieval_zh": {
+          "score": 99.5,
+          "loss_pp": 0.0
+        },
+        "lcc": {
+          "score": 13.83,
+          "loss_pp": -1.3
+        },
+        "repobench-p": {
+          "score": 19.77,
+          "loss_pp": -1.38
+        }
+      },
+      "identical_generations": 1901,
+      "sample_hash_mismatches": 0
+    },
+    "three_level_rbhn_r64_protect_39_40_42_45_46": {
+      "hif4_scale_levels": "123",
+      "rotation": "rbhn_r64",
+      "protected_layers": [
+        39,
+        40,
+        42,
+        45,
+        46
+      ],
+      "macro": 44.9348,
+      "loss_pp": -0.0124,
+      "loss_ci95": [
+        -0.5287,
+        0.5199
+      ],
+      "categories": {
+        "single_document_qa": {
+          "score": 47.385,
+          "loss_pp": 0.45,
+          "loss_ci95": [
+            -0.5319,
+            1.4338
+          ]
+        },
+        "multi_document_qa": {
+          "score": 45.12,
+          "loss_pp": 0.745,
+          "loss_ci95": [
+            -0.7469,
+            2.3347
+          ]
+        },
+        "summarization": {
+          "score": 24.19,
+          "loss_pp": -0.0625,
+          "loss_ci95": [
+            -0.2753,
+            0.1605
+          ]
+        },
+        "few_shot_learning": {
+          "score": 58.08,
+          "loss_pp": -1.795,
+          "loss_ci95": [
+            -3.4624,
+            -0.1442
+          ]
+        },
+        "synthetic": {
+          "score": 70.5,
+          "loss_pp": 1.5,
+          "loss_ci95": [
+            0.1667,
+            2.8333
+          ]
+        },
+        "code": {
+          "score": 16.515,
+          "loss_pp": -1.055,
+          "loss_ci95": [
+            -2.223,
+            -0.026
+          ]
+        }
+      },
+      "task_results": {
+        "narrativeqa": {
+          "score": 30.3,
+          "loss_pp": 1.05
+        },
+        "qasper": {
+          "score": 44.66,
+          "loss_pp": 0.89
+        },
+        "multifieldqa_en": {
+          "score": 50.99,
+          "loss_pp": -1.07
+        },
+        "multifieldqa_zh": {
+          "score": 63.59,
+          "loss_pp": 0.93
+        },
+        "hotpotqa": {
+          "score": 57.66,
+          "loss_pp": 1.75
+        },
+        "2wikimqa": {
+          "score": 53.26,
+          "loss_pp": 2.16
+        },
+        "musique": {
+          "score": 39.52,
+          "loss_pp": -0.09
+        },
+        "dureader": {
+          "score": 30.04,
+          "loss_pp": -0.84
+        },
+        "gov_report": {
+          "score": 33.1,
+          "loss_pp": 0.06
+        },
+        "qmsum": {
+          "score": 23.99,
+          "loss_pp": -0.19
+        },
+        "multi_news": {
+          "score": 25.27,
+          "loss_pp": 0.01
+        },
+        "vcsum": {
+          "score": 14.4,
+          "loss_pp": -0.13
+        },
+        "trec": {
+          "score": 71.0,
+          "loss_pp": 0.5
+        },
+        "triviaqa": {
+          "score": 73.49,
+          "loss_pp": -2.61
+        },
+        "samsum": {
+          "score": 40.33,
+          "loss_pp": -2.57
+        },
+        "lsht": {
+          "score": 47.5,
+          "loss_pp": -2.5
+        },
+        "passage_count": {
+          "score": 12.0,
+          "loss_pp": 4.5
+        },
+        "passage_retrieval_en": {
+          "score": 100.0,
+          "loss_pp": 0.0
+        },
+        "passage_retrieval_zh": {
+          "score": 99.5,
+          "loss_pp": 0.0
+        },
+        "lcc": {
+          "score": 13.05,
+          "loss_pp": -0.52
+        },
+        "repobench-p": {
+          "score": 19.98,
+          "loss_pp": -1.59
+        }
+      },
+      "identical_generations": 1888,
+      "sample_hash_mismatches": 0
+    },
+    "two_level_hisq1024_protect_39_42_43_45_46_63": {
+      "hif4_scale_levels": "12",
+      "rotation": "hisq1024",
+      "protected_layers": [
+        39,
+        42,
+        43,
+        45,
+        46,
+        63
+      ],
+      "macro": 45.0224,
+      "loss_pp": -0.1,
+      "loss_ci95": [
+        -0.6218,
+        0.4681
+      ],
+      "categories": {
+        "single_document_qa": {
+          "score": 48.14,
+          "loss_pp": -0.305,
+          "loss_ci95": [
+            -1.3319,
+            0.6868
+          ]
+        },
+        "multi_document_qa": {
+          "score": 46.1375,
+          "loss_pp": -0.2725,
+          "loss_ci95": [
+            -1.7328,
+            1.2746
+          ]
+        },
+        "summarization": {
+          "score": 24.02,
+          "loss_pp": 0.1075,
+          "loss_ci95": [
+            -0.1098,
+            0.3502
+          ]
+        },
+        "few_shot_learning": {
+          "score": 57.355,
+          "loss_pp": -1.07,
+          "loss_ci95": [
+            -2.8525,
+            0.7502
+          ]
+        },
+        "synthetic": {
+          "score": 70.0,
+          "loss_pp": 2.0,
+          "loss_ci95": [
+            0.5,
+            3.5
+          ]
+        },
+        "code": {
+          "score": 16.43,
+          "loss_pp": -0.97,
+          "loss_ci95": [
+            -1.888,
+            -0.072
+          ]
+        }
+      },
+      "task_results": {
+        "narrativeqa": {
+          "score": 30.54,
+          "loss_pp": 0.81
+        },
+        "qasper": {
+          "score": 45.53,
+          "loss_pp": 0.02
+        },
+        "multifieldqa_en": {
+          "score": 50.5,
+          "loss_pp": -0.58
+        },
+        "multifieldqa_zh": {
+          "score": 65.99,
+          "loss_pp": -1.47
+        },
+        "hotpotqa": {
+          "score": 59.59,
+          "loss_pp": -0.18
+        },
+        "2wikimqa": {
+          "score": 52.91,
+          "loss_pp": 2.51
+        },
+        "musique": {
+          "score": 43.14,
+          "loss_pp": -3.71
+        },
+        "dureader": {
+          "score": 28.91,
+          "loss_pp": 0.29
+        },
+        "gov_report": {
+          "score": 33.02,
+          "loss_pp": 0.14
+        },
+        "qmsum": {
+          "score": 23.7,
+          "loss_pp": 0.1
+        },
+        "multi_news": {
+          "score": 25.02,
+          "loss_pp": 0.26
+        },
+        "vcsum": {
+          "score": 14.34,
+          "loss_pp": -0.07
+        },
+        "trec": {
+          "score": 71.0,
+          "loss_pp": 0.5
+        },
+        "triviaqa": {
+          "score": 73.66,
+          "loss_pp": -2.78
+        },
+        "samsum": {
+          "score": 35.76,
+          "loss_pp": 2.0
+        },
+        "lsht": {
+          "score": 49.0,
+          "loss_pp": -4.0
+        },
+        "passage_count": {
+          "score": 13.0,
+          "loss_pp": 3.5
+        },
+        "passage_retrieval_en": {
+          "score": 97.5,
+          "loss_pp": 2.5
+        },
+        "passage_retrieval_zh": {
+          "score": 99.5,
+          "loss_pp": 0.0
+        },
+        "lcc": {
+          "score": 13.71,
+          "loss_pp": -1.18
+        },
+        "repobench-p": {
+          "score": 19.15,
+          "loss_pp": -0.76
+        }
+      },
+      "identical_generations": 1866,
+      "sample_hash_mismatches": 0
+    },
+    "two_level_rbh_r64_protect_41_42_43_44_45_46": {
+      "hif4_scale_levels": "12",
+      "rotation": "rbh_r64",
+      "protected_layers": [
+        41,
+        42,
+        43,
+        44,
+        45,
+        46
+      ],
+      "macro": 45.1205,
+      "loss_pp": -0.1981,
+      "loss_ci95": [
+        -0.7749,
+        0.3593
+      ],
+      "categories": {
+        "single_document_qa": {
+          "score": 47.095,
+          "loss_pp": 0.74,
+          "loss_ci95": [
+            -0.3748,
+            1.7856
+          ]
+        },
+        "multi_document_qa": {
+          "score": 45.34,
+          "loss_pp": 0.525,
+          "loss_ci95": [
+            -1.0238,
+            2.235
+          ]
+        },
+        "summarization": {
+          "score": 24.12,
+          "loss_pp": 0.0075,
+          "loss_ci95": [
+            -0.2146,
+            0.2202
+          ]
+        },
+        "few_shot_learning": {
+          "score": 58.5175,
+          "loss_pp": -2.2325,
+          "loss_ci95": [
+            -4.1716,
+            -0.3643
+          ]
+        },
+        "synthetic": {
+          "score": 71.1667,
+          "loss_pp": 0.8333,
+          "loss_ci95": [
+            -0.5,
+            2.1667
+          ]
+        },
+        "code": {
+          "score": 16.87,
+          "loss_pp": -1.41,
+          "loss_ci95": [
+            -2.346,
+            -0.538
+          ]
+        }
+      },
+      "task_results": {
+        "narrativeqa": {
+          "score": 30.34,
+          "loss_pp": 1.01
+        },
+        "qasper": {
+          "score": 44.79,
+          "loss_pp": 0.76
+        },
+        "multifieldqa_en": {
+          "score": 50.06,
+          "loss_pp": -0.14
+        },
+        "multifieldqa_zh": {
+          "score": 63.19,
+          "loss_pp": 1.33
+        },
+        "hotpotqa": {
+          "score": 58.14,
+          "loss_pp": 1.27
+        },
+        "2wikimqa": {
+          "score": 51.52,
+          "loss_pp": 3.9
+        },
+        "musique": {
+          "score": 41.85,
+          "loss_pp": -2.42
+        },
+        "dureader": {
+          "score": 29.85,
+          "loss_pp": -0.65
+        },
+        "gov_report": {
+          "score": 33.16,
+          "loss_pp": 0.0
+        },
+        "qmsum": {
+          "score": 23.84,
+          "loss_pp": -0.04
+        },
+        "multi_news": {
+          "score": 25.16,
+          "loss_pp": 0.12
+        },
+        "vcsum": {
+          "score": 14.32,
+          "loss_pp": -0.05
+        },
+        "trec": {
+          "score": 72.0,
+          "loss_pp": -0.5
+        },
+        "triviaqa": {
+          "score": 77.22,
+          "loss_pp": -6.34
+        },
+        "samsum": {
+          "score": 40.35,
+          "loss_pp": -2.59
+        },
+        "lsht": {
+          "score": 44.5,
+          "loss_pp": 0.5
+        },
+        "passage_count": {
+          "score": 14.0,
+          "loss_pp": 2.5
+        },
+        "passage_retrieval_en": {
+          "score": 99.5,
+          "loss_pp": 0.5
+        },
+        "passage_retrieval_zh": {
+          "score": 100.0,
+          "loss_pp": -0.5
+        },
+        "lcc": {
+          "score": 13.17,
+          "loss_pp": -0.64
+        },
+        "repobench-p": {
+          "score": 20.57,
+          "loss_pp": -2.18
+        }
+      },
+      "identical_generations": 1840,
+      "sample_hash_mismatches": 0
+    }
+  },
+  "raw_samples_in_repository": false
+}

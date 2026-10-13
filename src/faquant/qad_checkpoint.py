@@ -7,7 +7,11 @@ from pathlib import Path
 import torch
 from torch import nn
 
-from .hif4 import CompactHiF4Parameters, HIF4_BLOCK_SIZE
+from .hif4 import (
+    CompactHiF4Parameters,
+    HIF4_BLOCK_SIZE,
+    quantize_hif4_with_compact_parameters,
+)
 from .qad import qwen3_hif4_qad_config
 from .qad_quantization import (
     QATConversionStats,
@@ -26,6 +30,22 @@ class QADCheckpointLoadStats:
     qat: QATConversionStats
     missing_keys: tuple[str, ...]
     unexpected_keys: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class QADInferenceLoadStats:
+    linears: int
+    requantized_max_abs: float
+    missing_keys: tuple[str, ...]
+    unexpected_keys: tuple[str, ...]
+
+
+_HIF4_METADATA_LEAVES = {
+    "weight_hif4_scale": "scale",
+    "weight_hif4_reciprocal": "reciprocal",
+    "weight_hif4_scale_lv2_exponent": "scale_lv2_exponent",
+    "weight_hif4_scale_lv3_exponent": "scale_lv3_exponent",
+}
 
 
 def _placeholder_parameters(module: FakeQuantLinear) -> CompactHiF4Parameters:
@@ -245,4 +265,121 @@ def load_qad_student_checkpoint(
         qat=qat,
         missing_keys=tuple(result.missing_keys),
         unexpected_keys=tuple(result.unexpected_keys),
+    )
+
+
+@torch.inference_mode()
+def load_qad_inference_checkpoint(
+    model: nn.Module,
+    checkpoint: str | Path,
+    *,
+    rotation: str,
+    seed: int = 0,
+    hisq_block_size: int = 1024,
+    hisq_seed: int = 17,
+) -> QADInferenceLoadStats:
+    """Load a step-0 QAD checkpoint straight into inference fake-quant linears.
+
+    The QAT skeleton keeps a master weight and HiF4 metadata per projection and
+    peaks at over twice the BF16 model while it is converted, which puts a 32B
+    model beyond one GPU. At step 0 every master already sits on the grid its
+    saved metadata describes, so the inference weight is the saved weight.
+    Each one is re-quantized with that metadata and must come back unchanged,
+    the property ``convert_hif4_qat_to_inference`` depends on.
+    """
+
+    from safetensors import safe_open
+
+    from .hif4 import HIF4_ACT_SCALE_LEVELS, HIF4_SCALE_LEVELS
+
+    checkpoint = Path(checkpoint)
+    receipt = checkpoint / "qad_init.json"
+    recorded = json.loads(receipt.read_text(encoding="utf-8")) if receipt.exists() else {}
+    weight_levels = recorded.get("hif4_scale_levels", "123")
+    act_levels = recorded.get("hif4_act_scale_levels", weight_levels)
+    if (weight_levels, act_levels) != (HIF4_SCALE_LEVELS, HIF4_ACT_SCALE_LEVELS):
+        raise ValueError(
+            f"{checkpoint} was built with HiF4 scale levels {weight_levels} (weights) / "
+            f"{act_levels} (activations), but this process runs {HIF4_SCALE_LEVELS} / "
+            f"{HIF4_ACT_SCALE_LEVELS} (FAQUANT_HIF4_SCALE_LEVELS / FAQUANT_HIF4_ACT_SCALE_LEVELS)"
+        )
+    for artifact in (
+        "training_receipt.json",
+        "activation_companding.json",
+        "activation_clipping.json",
+    ):
+        if (checkpoint / artifact).exists():
+            raise ValueError(
+                f"{checkpoint} has {artifact}; only step-0 initializations load "
+                "without the QAT skeleton"
+            )
+    config = replace(
+        qwen3_hif4_qad_config(
+            rotation=rotation,
+            seed=seed,
+            hisq_block_size=hisq_block_size,
+            hisq_down_proj_block_size=_recorded_down_proj_block_size(checkpoint),
+            hisq_seed=hisq_seed,
+            quant_exempt_layers=recorded_quant_exempt_layers(checkpoint),
+            quant_exempt_modules=recorded_quant_exempt_modules(checkpoint),
+        ),
+        weight_quant="rtn",
+        qad_capture_weight_metadata=False,
+    )
+    prepare_model(model, config)
+    expected = set(model.state_dict())
+    loaded: set[str] = set()
+    unexpected: set[str] = set()
+    metadata: dict[str, dict[str, torch.Tensor]] = {}
+    index = json.loads(
+        (checkpoint / "model.safetensors.index.json").read_text(encoding="utf-8")
+    )
+    for shard in sorted(set(index["weight_map"].values())):
+        state = {}
+        with safe_open(checkpoint / shard, framework="pt", device="cpu") as tensors:
+            for key in tensors.keys():
+                module_name, _, leaf = key.rpartition(".")
+                if leaf in _HIF4_METADATA_LEAVES:
+                    metadata.setdefault(module_name, {})[
+                        _HIF4_METADATA_LEAVES[leaf]
+                    ] = tensors.get_tensor(key)
+                else:
+                    state[key] = tensors.get_tensor(key)
+        result = model.load_state_dict(state, strict=False)
+        unexpected.update(result.unexpected_keys)
+        loaded.update(state)
+        del state
+
+    requantized_max_abs = 0.0
+    linears = 0
+    for name, module in model.named_modules():
+        if not isinstance(module, FakeQuantLinear):
+            continue
+        fields = metadata.pop(name, None)
+        if fields is None or len(fields) != len(_HIF4_METADATA_LEAVES):
+            raise RuntimeError(f"{checkpoint} has no complete HiF4 metadata for {name}")
+        weight = module.weight
+        parameters = CompactHiF4Parameters(
+            **{key: value.to(weight.device) for key, value in fields.items()}
+        )
+        grouped = weight.reshape(
+            weight.shape[0], weight.shape[1] // HIF4_BLOCK_SIZE, HIF4_BLOCK_SIZE
+        )
+        requantized = quantize_hif4_with_compact_parameters(grouped, parameters)
+        requantized = requantized.reshape_as(weight).to(weight.dtype)
+        requantized_max_abs = max(
+            requantized_max_abs,
+            float((requantized.float() - weight.float()).abs().max()),
+        )
+        linears += 1
+        del parameters, grouped, requantized
+    if metadata:
+        raise RuntimeError(
+            f"HiF4 metadata for modules that are not quantized: {sorted(metadata)[:4]}"
+        )
+    return QADInferenceLoadStats(
+        linears=linears,
+        requantized_max_abs=requantized_max_abs,
+        missing_keys=tuple(sorted(expected - loaded)),
+        unexpected_keys=tuple(sorted(unexpected)),
     )

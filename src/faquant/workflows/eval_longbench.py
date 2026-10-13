@@ -15,15 +15,18 @@ from types import MethodType
 import torch
 import torch.nn.functional as F
 from safetensors import safe_open
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 from faquant.config import ExperimentConfig
 from faquant.hisq_rotation import apply_qwen_hisq_input_rotation
+from faquant.multi_gpu import install_cpu_staged_transfers, layer_device_map
 from faquant.qad_checkpoint import (
+    load_qad_inference_checkpoint,
     load_qad_student_checkpoint,
     recorded_quant_exempt_layers,
     recorded_quant_exempt_modules,
 )
+from faquant.qad import QAD_ROTATIONS
 from faquant.qad_quantization import (
     convert_hif4_qat_to_inference,
     set_hif4_qat_metadata_mode,
@@ -44,19 +47,55 @@ from faquant.rotation import (
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--checkpoint", type=Path, required=True)
+    parser.add_argument("--checkpoint", type=Path)
     parser.add_argument("--model", default=DEFAULT_MODEL)
+    parser.add_argument(
+        "--bf16-reference",
+        action="store_true",
+        help=(
+            "Evaluate the native BF16 --model instead (no checkpoint, no "
+            "quantization, Hugging Face greedy generate) through the same "
+            "prompt construction and truncation, as the reference for gaps."
+        ),
+    )
+    parser.add_argument(
+        "--layer-devices",
+        type=int,
+        default=1,
+        help=(
+            "Split decoder layers over this many visible GPUs (cuda:0..N-1). "
+            "Cross-GPU moves are staged through host memory, never peer access."
+        ),
+    )
+    parser.add_argument(
+        "--inference-load",
+        action="store_true",
+        help="Load step-0 weights straight into inference linears (no QAT skeleton).",
+    )
+    parser.add_argument(
+        "--jobs-file",
+        type=Path,
+        help=(
+            "JSON list of {task, start, end, output, chat_template} run in one "
+            "process with the models loaded once; replaces --tasks/--output."
+        ),
+    )
+    parser.add_argument(
+        "--claim-dir",
+        type=Path,
+        help="Local directory where --jobs-file workers claim jobs atomically.",
+    )
     parser.add_argument(
         "--decode-model",
         help="Native BF16 model used after the quantized prefill; defaults to --model.",
     )
     parser.add_argument(
         "--rotation",
-        choices=("hadamard", "none", "hisq1024"),
+        choices=QAD_ROTATIONS,
         required=True,
     )
     parser.add_argument("--tasks", default="mmlu")
-    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--output", type=Path)
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--batch-size", default="16")
     parser.add_argument("--max-length", type=int, default=40960)
@@ -67,6 +106,16 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Use simulated for exact comparison with the 70.5597%% simfa_none "
             "MMLU setting; native is useful for practical LongBench runs."
+        ),
+    )
+    parser.add_argument(
+        "--prefill-chunk-tokens",
+        type=int,
+        default=0,
+        help=(
+            "Run the quantized prefill in chunks of this many tokens against the "
+            "growing KV cache (0: one pass). Must be a multiple of the 256-token "
+            "query tile; bounds activation memory for 40k-token prompts."
         ),
     )
     parser.add_argument("--query-chunk-size", type=int, default=256)
@@ -119,7 +168,7 @@ def parse_args() -> argparse.Namespace:
         "--qk-smooth-scales",
         type=Path,
         help=(
-            "Frozen Smooth-QK artifact from scripts/calibrate_qk_smooth_scales.py. "
+            "Frozen Smooth-QK artifact from faquant-calibrate-smooth-qk. "
             "Migrates the post-RoPE channel imbalance out of K and into Q without "
             "changing the scores, so it only matters when Q/K are quantized."
         ),
@@ -378,28 +427,36 @@ def _install_bf16_hisq_linears(
 def _prepare_bf16_decode_model(
     *,
     model_path: str,
-    device: str,
+    device_map: dict,
     smooth_scales: Path,
     exempt_layers: tuple[int, ...],
     protected_modules: frozenset[tuple[int, str]],
 ) -> torch.nn.Module:
+    # The decode model appends to the prefill model's KV cache, so every layer
+    # must sit on the same GPU in both models.
     model = AutoModelForCausalLM.from_pretrained(
         model_path,
         local_files_only=True,
         dtype=torch.bfloat16,
         attn_implementation="flash_attention_2",
-        device_map={"": device},
+        device_map=device_map,
         low_cpu_mem_usage=True,
     )
     apply_qwen3_value_head_rotation(
         model,
         exempt_modules=protected_modules,
     )
+    # The rotation leaves the rotated BF16 weight in place, which is all the
+    # decode linears use; drop each FP32 copy at once instead of holding one
+    # per projection (about twice the model) until the swap below.
     apply_qwen_hisq_input_rotation(
         model,
         block_size=1024,
         seed=17,
         exempt_modules=protected_modules,
+        on_rotated=lambda name: delattr(
+            model.get_submodule(name), "faquant_weight_override"
+        ),
     )
     _install_bf16_hisq_linears(model, protected_modules)
     adapter_config = ExperimentConfig(
@@ -461,8 +518,28 @@ def _prefill_quant_decode_bf16_generate(
         raise ValueError("prefill-only quantization currently supports one beam")
 
     decode_model = self.__dict__["_faquant_bf16_decode_model"]
-    outputs = self(input_ids=input_ids, use_cache=True, return_dict=True)
-    cache = outputs.past_key_values
+    # Only the last position's logits are used; all of them for a 40k-token
+    # prompt would be another 12 GB on the GPU holding the LM head. A chunk
+    # size that is a multiple of the query tile keeps every simulated
+    # attention tile, and every token-local quantizer, exactly as in one pass.
+    chunk = int(self.__dict__.get("_faquant_prefill_chunk_tokens") or input_ids.shape[-1])
+    cache = None
+    for start in range(0, input_ids.shape[-1], chunk):
+        stop = min(start + chunk, input_ids.shape[-1])
+        outputs = self(
+            input_ids=input_ids[:, start:stop],
+            past_key_values=cache,
+            cache_position=torch.arange(start, stop, device=input_ids.device),
+            use_cache=True,
+            return_dict=True,
+            logits_to_keep=1,
+        )
+        cache = outputs.past_key_values
+    # The K/V QDQ copies only serve quantized decode appends, and decode runs
+    # on the BF16 model; free them instead of holding a second KV cache.
+    for layer in self.model.layers:
+        layer.self_attn.faquant_k_matmul_qdq_cache = None
+        layer.self_attn.faquant_v_matmul_qdq_cache = None
     scores = outputs.logits[:, -1, :]
     next_token = scores.argmax(dim=-1, keepdim=True)
     sequence = torch.cat((input_ids, next_token), dim=-1)
@@ -497,6 +574,146 @@ def _prefill_quant_decode_bf16_generate(
     return sequence
 
 
+def _run_evaluation(args, model, tokenizer, metadata: dict, *, collect_stats: bool) -> None:
+    """Run --tasks into --output, or every unclaimed job of --jobs-file."""
+
+    from lm_eval import evaluator
+    from lm_eval.models.huggingface import HFLM as BaseHFLM
+    from lm_eval.tasks import TaskManager
+
+    class HFLM(BaseHFLM):
+        """Add official LongBench middle truncation without patching lm-eval."""
+
+        def tok_batch_encode(
+            self,
+            strings: list[str],
+            padding_side: str = "left",
+            left_truncate_len: int | None = None,
+            truncation: bool = False,
+        ) -> tuple[torch.Tensor, torch.Tensor]:
+            mode = os.environ.get("LM_EVAL_TRUNCATION_MODE", "left").lower()
+            if mode != "middle" or left_truncate_len is None:
+                return super().tok_batch_encode(
+                    strings,
+                    padding_side=padding_side,
+                    left_truncate_len=left_truncate_len,
+                    truncation=truncation,
+                )
+            input_ids, attention_mask = super().tok_batch_encode(
+                strings,
+                padding_side=padding_side,
+                left_truncate_len=None,
+                truncation=truncation,
+            )
+            if input_ids.shape[-1] <= left_truncate_len:
+                return input_ids, attention_mask
+            if input_ids.shape[0] != 1:
+                raise ValueError("middle truncation requires batch size 1")
+            prefix_len = left_truncate_len // 2
+            suffix_len = left_truncate_len - prefix_len
+            input_ids = torch.cat(
+                (input_ids[:, :prefix_len], input_ids[:, -suffix_len:]),
+                dim=-1,
+            )
+            attention_mask = torch.cat(
+                (
+                    attention_mask[:, :prefix_len],
+                    attention_mask[:, -suffix_len:],
+                ),
+                dim=-1,
+            )
+            return input_ids, attention_mask
+
+    lm = HFLM(
+        pretrained=model,
+        tokenizer=tokenizer,
+        backend="causal",
+        device=args.device,
+        batch_size=args.batch_size,
+        max_length=args.max_length,
+        enable_thinking=False,
+    )
+
+    task_manager = TaskManager(include_path=str(files("faquant.tasks.longbench")))
+
+    def evaluate(
+        tasks: list[str],
+        output: Path,
+        sample_range: tuple[int, int] | None,
+        apply_chat_template: bool,
+    ) -> None:
+        run_metadata = json.loads(json.dumps(metadata, default=str))
+        eval_kwargs: dict[str, object] = {}
+        if sample_range is not None:
+            start, end = sample_range
+            if len(tasks) != 1:
+                raise ValueError("sample range requires exactly one task")
+            if start < 0 or end <= start:
+                raise ValueError("invalid sample range")
+            eval_kwargs["samples"] = {tasks[0]: list(range(start, end))}
+            run_metadata["qad"]["sample_start"] = start
+            run_metadata["qad"]["sample_end"] = end
+        results = evaluator.simple_evaluate(
+            model=lm,
+            tasks=tasks,
+            num_fewshot=args.num_fewshot,
+            batch_size=args.batch_size,
+            device=args.device,
+            limit=args.limit,
+            log_samples=True,
+            random_seed=args.seed,
+            numpy_random_seed=args.seed,
+            torch_random_seed=args.seed,
+            fewshot_random_seed=args.seed,
+            metadata=run_metadata,
+            apply_chat_template=apply_chat_template,
+            task_manager=task_manager,
+            **eval_kwargs,
+        )
+        if collect_stats:
+            run_metadata["qad"]["simulated_attention_stats"] = (
+                collect_qwen3_simulated_attention_stats(model)
+            )
+        results["faquant_qad_runtime"] = run_metadata["qad"]
+        output.parent.mkdir(parents=True, exist_ok=True)
+        partial = output.with_name(output.name + ".partial")
+        partial.write_text(
+            json.dumps(results, ensure_ascii=False, indent=2, default=str) + "\n",
+            encoding="utf-8",
+        )
+        partial.replace(output)
+        print(f"Saved results to {output}", flush=True)
+
+    if args.jobs_file is None:
+        tasks = [task.strip() for task in args.tasks.split(",") if task.strip()]
+        if (args.sample_start is None) != (args.sample_end is None):
+            raise ValueError("--sample-start and --sample-end must be set together")
+        sample_range = (
+            None if args.sample_start is None else (args.sample_start, args.sample_end)
+        )
+        evaluate(tasks, args.output, sample_range, args.apply_chat_template)
+        return
+    # Workers on one node share a job list; O_EXCL on the node's local disk
+    # makes each claim atomic, so every job runs once.
+    args.claim_dir.mkdir(parents=True, exist_ok=True)
+    for job in json.loads(args.jobs_file.read_text(encoding="utf-8")):
+        output = Path(job["output"])
+        if output.exists():
+            continue
+        try:
+            handle = os.open(
+                args.claim_dir / f"{output.name}.claim",
+                os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+            )
+        except FileExistsError:
+            continue
+        os.write(handle, str(os.getpid()).encode())
+        os.close(handle)
+        evaluate(
+            [job["task"]], output, (job["start"], job["end"]), bool(job["chat_template"])
+        )
+
+
 def main() -> None:
     args = parse_args()
     logging.basicConfig(
@@ -506,8 +723,26 @@ def main() -> None:
     os.environ["HF_ENDPOINT"] = os.environ.get(
         "FAQUANT_HF_ENDPOINT", "https://huggingface.co"
     )
+    if args.bf16_reference == (args.checkpoint is not None):
+        raise ValueError("pass --checkpoint, or --bf16-reference without one")
+    if args.jobs_file is None and args.output is None:
+        raise ValueError("--output or --jobs-file is required")
+    if args.jobs_file is not None and args.claim_dir is None:
+        raise ValueError("--jobs-file requires --claim-dir")
+    num_layers = AutoConfig.from_pretrained(
+        args.model, local_files_only=True
+    ).num_hidden_layers
+    if args.layer_devices > 1:
+        if args.device != "cuda:0":
+            raise ValueError("--layer-devices puts the embeddings on cuda:0")
+        install_cpu_staged_transfers()
+        device_map = layer_device_map(
+            num_layers, args.layer_devices, first_device_extra_layers=3
+        )
+    else:
+        device_map = {"": args.device}
     tokenizer = AutoTokenizer.from_pretrained(
-        args.checkpoint,
+        args.checkpoint or args.model,
         local_files_only=True,
     )
     model = AutoModelForCausalLM.from_pretrained(
@@ -515,9 +750,33 @@ def main() -> None:
         local_files_only=True,
         dtype=torch.bfloat16,
         attn_implementation="flash_attention_2",
-        device_map={"": args.device},
+        device_map=device_map,
         low_cpu_mem_usage=True,
     )
+    if args.bf16_reference:
+        model.requires_grad_(False)
+        model.eval()
+        model.config.use_cache = True
+        _run_evaluation(
+            args,
+            model,
+            tokenizer,
+            {
+                "qad": {
+                    "bf16_reference": True,
+                    "model": args.model,
+                    "quantization_scope": "none",
+                    "decode_precision": "bfloat16",
+                    "attention_implementation": "flash_attention_2",
+                    "layer_devices": args.layer_devices,
+                    "truncation_mode": os.environ.get(
+                        "LM_EVAL_TRUNCATION_MODE", "left"
+                    ).lower(),
+                }
+            },
+            collect_stats=False,
+        )
+        return
     receipt_path = args.checkpoint / "training_receipt.json"
     training_receipt = (
         json.loads(receipt_path.read_text(encoding="utf-8"))
@@ -552,13 +811,36 @@ def main() -> None:
         )
     whole_exempt = recorded_exempt
     protected_modules = _expand_protected_modules(whole_exempt, recorded_modules)
-    loaded = load_qad_student_checkpoint(
-        model,
-        args.checkpoint,
-        rotation=args.rotation,
-        seed=0,
-        trainable_input_scales=trainable_input_scales,
-    )
+    if args.inference_load:
+        if (
+            args.rollback_projections
+            or args.blend_checkpoint is not None
+            or overlay_layers
+            or training_receipt
+        ):
+            raise ValueError(
+                "--inference-load takes a step-0 PTQ checkpoint without "
+                "rollback, blending, overlay or training receipt"
+            )
+        loaded = load_qad_inference_checkpoint(
+            model,
+            args.checkpoint,
+            rotation=args.rotation,
+            seed=0,
+        )
+        if loaded.requantized_max_abs != 0.0:
+            raise RuntimeError(
+                "saved weights are off their HiF4 grid: "
+                f"max_abs={loaded.requantized_max_abs}"
+            )
+    else:
+        loaded = load_qad_student_checkpoint(
+            model,
+            args.checkpoint,
+            rotation=args.rotation,
+            seed=0,
+            trainable_input_scales=trainable_input_scales,
+        )
     if loaded.missing_keys or loaded.unexpected_keys:
         raise RuntimeError(
             f"QAD checkpoint state mismatch: missing={loaded.missing_keys}, "
@@ -582,7 +864,7 @@ def main() -> None:
     rollback_weights = 0
     rollback_layers = _layer_list(args.rollback_layers, "--rollback-layers")
     rollback_layer_set = (
-        frozenset(range(36)) if not rollback_layers else frozenset(rollback_layers)
+        frozenset(range(num_layers)) if not rollback_layers else frozenset(rollback_layers)
     )
     if rollback_projections:
         if args.rollback_checkpoint is None:
@@ -676,7 +958,7 @@ def main() -> None:
                         ).to(module.weight.dtype)
                     )
                     blended_weights += 1
-        expected_blended = 36 * len(blend_projections)
+        expected_blended = num_layers * len(blend_projections)
         if blended_weights != expected_blended:
             raise RuntimeError(
                 f"blend covered {blended_weights} weights, expected "
@@ -725,42 +1007,50 @@ def main() -> None:
             )
         else:
             metadata_mode = "fixed"
-    set_hif4_qat_metadata_mode(model, metadata_mode)
+    if not args.inference_load:
+        set_hif4_qat_metadata_mode(model, metadata_mode)
     model.requires_grad_(False)
     model.eval()
     model.gradient_checkpointing_disable()
     model.config.use_cache = True
 
-    parity = tokenizer(
-        "The capital of France is",
-        return_tensors="pt",
-    )
-    parity = {key: value.to(args.device) for key, value in parity.items()}
-    with torch.no_grad():
-        qat_logits = model(**parity, use_cache=False).logits
-    converted = convert_hif4_qat_to_inference(model)
-    model.eval()
-    with torch.no_grad():
-        inference_logits = model(**parity, use_cache=False).logits
-    parity_max_abs = float(
-        (qat_logits.float() - inference_logits.float()).abs().max().item()
-    )
-    if parity_max_abs != 0.0:
-        raise RuntimeError(
-            "QAD-to-inference conversion parity failed: "
-            f"max_abs={parity_max_abs}"
+    if args.inference_load:
+        qat_linears_loaded = inference_linears = loaded.linears
+        parity_max_abs = loaded.requantized_max_abs
+    else:
+        parity = tokenizer(
+            "The capital of France is",
+            return_tensors="pt",
         )
+        parity = {key: value.to(args.device) for key, value in parity.items()}
+        with torch.no_grad():
+            qat_logits = model(**parity, use_cache=False).logits
+        converted = convert_hif4_qat_to_inference(model)
+        model.eval()
+        with torch.no_grad():
+            inference_logits = model(**parity, use_cache=False).logits
+        parity_max_abs = float(
+            (qat_logits.float() - inference_logits.float()).abs().max().item()
+        )
+        if parity_max_abs != 0.0:
+            raise RuntimeError(
+                "QAD-to-inference conversion parity failed: "
+                f"max_abs={parity_max_abs}"
+            )
+        qat_linears_loaded = loaded.qat.converted
+        inference_linears = converted.converted
     fake_quant_linears = sum(
         isinstance(module, FakeQuantLinear) for module in model.modules()
     )
     # A whole-layer exemption removes that layer's seven projections from the
     # quantized set, so the count is no longer a constant.
-    expected_linears = 252 - len(protected_modules)
+    total_linears = 7 * num_layers
+    expected_linears = total_linears - len(protected_modules)
     if fake_quant_linears != expected_linears:
         raise RuntimeError(
             f"expected {expected_linears} fake-quant linears "
-            f"(252 minus {len(protected_modules)} protected projections), "
-            f"got {fake_quant_linears}"
+            f"({total_linears} minus {len(protected_modules)} protected "
+            f"projections), got {fake_quant_linears}"
         )
     if args.skip_weight_hash:
         weight_sha256 = None
@@ -815,7 +1105,7 @@ def main() -> None:
     torch.cuda.empty_cache()
     decode_model = _prepare_bf16_decode_model(
         model_path=args.decode_model or args.model,
-        device=args.device,
+        device_map=device_map,
         smooth_scales=args.qk_smooth_scales,
         exempt_layers=whole_exempt,
         protected_modules=protected_modules,
@@ -823,75 +1113,20 @@ def main() -> None:
     if any(isinstance(module, FakeQuantLinear) for module in decode_model.modules()):
         raise RuntimeError("BF16 decode model unexpectedly contains FakeQuantLinear")
     model.__dict__["_faquant_bf16_decode_model"] = decode_model
+    if args.prefill_chunk_tokens % 256:
+        raise ValueError("--prefill-chunk-tokens must be a multiple of 256")
+    model.__dict__["_faquant_prefill_chunk_tokens"] = args.prefill_chunk_tokens
     model.generate = MethodType(_prefill_quant_decode_bf16_generate, model)
 
-    from lm_eval import evaluator
-    from lm_eval.models.huggingface import HFLM as BaseHFLM
-    from lm_eval.tasks import TaskManager
-
-    class HFLM(BaseHFLM):
-        """Add official LongBench middle truncation without patching lm-eval."""
-
-        def tok_batch_encode(
-            self,
-            strings: list[str],
-            padding_side: str = "left",
-            left_truncate_len: int | None = None,
-            truncation: bool = False,
-        ) -> tuple[torch.Tensor, torch.Tensor]:
-            mode = os.environ.get("LM_EVAL_TRUNCATION_MODE", "left").lower()
-            if mode != "middle" or left_truncate_len is None:
-                return super().tok_batch_encode(
-                    strings,
-                    padding_side=padding_side,
-                    left_truncate_len=left_truncate_len,
-                    truncation=truncation,
-                )
-            input_ids, attention_mask = super().tok_batch_encode(
-                strings,
-                padding_side=padding_side,
-                left_truncate_len=None,
-                truncation=truncation,
-            )
-            if input_ids.shape[-1] <= left_truncate_len:
-                return input_ids, attention_mask
-            if input_ids.shape[0] != 1:
-                raise ValueError("middle truncation requires batch size 1")
-            prefix_len = left_truncate_len // 2
-            suffix_len = left_truncate_len - prefix_len
-            input_ids = torch.cat(
-                (input_ids[:, :prefix_len], input_ids[:, -suffix_len:]),
-                dim=-1,
-            )
-            attention_mask = torch.cat(
-                (
-                    attention_mask[:, :prefix_len],
-                    attention_mask[:, -suffix_len:],
-                ),
-                dim=-1,
-            )
-            return input_ids, attention_mask
-
-    lm = HFLM(
-        pretrained=model,
-        tokenizer=tokenizer,
-        backend="causal",
-        device=args.device,
-        batch_size=args.batch_size,
-        max_length=args.max_length,
-        enable_thinking=False,
-    )
-    tasks = [task.strip() for task in args.tasks.split(",") if task.strip()]
-    task_manager = TaskManager(
-        include_path=str(files("faquant.tasks.longbench"))
-    )
     metadata = {
         "qad": {
             "checkpoint": str(args.checkpoint),
             "rotation": args.rotation,
             "metadata_mode": metadata_mode,
-            "qat_linears_loaded": loaded.qat.converted,
-            "inference_linears": converted.converted,
+            "qat_linears_loaded": qat_linears_loaded,
+            "inference_linears": inference_linears,
+            "load_mode": "inference" if args.inference_load else "qat",
+            "layer_devices": args.layer_devices,
             "conversion_parity_max_abs": parity_max_abs,
             "weight_bits": 4,
             "activation_bits": 4,
@@ -932,6 +1167,7 @@ def main() -> None:
             ).lower(),
             "query_chunk_size": args.query_chunk_size,
             "key_chunk_size": args.key_chunk_size,
+            "prefill_chunk_tokens": args.prefill_chunk_tokens,
             "quantized_weight_sha256": weight_sha256,
             "quantized_weight_hash_linears": hashed_linears,
             "quantized_weight_hash_skipped": args.skip_weight_hash,
@@ -953,46 +1189,7 @@ def main() -> None:
             "blended_weights": blended_weights,
         }
     }
-    eval_kwargs: dict[str, object] = {}
-    if args.sample_start is not None or args.sample_end is not None:
-        if args.sample_start is None or args.sample_end is None:
-            raise ValueError("--sample-start and --sample-end must be set together")
-        if len(tasks) != 1:
-            raise ValueError("sample range requires exactly one --tasks entry")
-        if args.sample_start < 0 or args.sample_end <= args.sample_start:
-            raise ValueError("invalid --sample-start/--sample-end range")
-        eval_kwargs["samples"] = {
-            tasks[0]: list(range(args.sample_start, args.sample_end))
-        }
-        metadata["qad"]["sample_start"] = args.sample_start
-        metadata["qad"]["sample_end"] = args.sample_end
-    results = evaluator.simple_evaluate(
-        model=lm,
-        tasks=tasks,
-        num_fewshot=args.num_fewshot,
-        batch_size=args.batch_size,
-        device=args.device,
-        limit=args.limit,
-        log_samples=True,
-        random_seed=args.seed,
-        numpy_random_seed=args.seed,
-        torch_random_seed=args.seed,
-        fewshot_random_seed=args.seed,
-        metadata=metadata,
-        apply_chat_template=args.apply_chat_template,
-        task_manager=task_manager,
-        **eval_kwargs,
-    )
-    metadata["qad"]["simulated_attention_stats"] = (
-        collect_qwen3_simulated_attention_stats(model)
-    )
-    results["faquant_qad_runtime"] = metadata["qad"]
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(
-        json.dumps(results, ensure_ascii=False, indent=2, default=str) + "\n",
-        encoding="utf-8",
-    )
-    print(f"Saved results to {args.output}")
+    _run_evaluation(args, model, tokenizer, metadata, collect_stats=True)
 
 
 if __name__ == "__main__":

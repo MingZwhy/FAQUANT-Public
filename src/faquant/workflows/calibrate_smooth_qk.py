@@ -41,7 +41,10 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers.models.qwen3.modeling_qwen3 import apply_rotary_pos_emb
 
 from faquant.gptq import calibration_tokens
-from faquant.qad_checkpoint import load_qad_student_checkpoint
+from faquant.qad_checkpoint import (
+    load_qad_inference_checkpoint,
+    load_qad_student_checkpoint,
+)
 from faquant.qad_quantization import (
     convert_hif4_qat_to_inference,
     set_hif4_qat_metadata_mode,
@@ -50,10 +53,11 @@ from faquant.qad_checkpoint import (
     recorded_quant_exempt_layers,
     recorded_quant_exempt_modules,
 )
+from faquant.qad import QAD_ROTATIONS
 from faquant.quantization import FakeQuantLinear
 from faquant.qwen3 import DEFAULT_MODEL
 
-EXPECTED_QUANTIZED_LINEARS = 252
+QWEN_PROJECTIONS_PER_LAYER = 7
 GATE_K_OUTLIER_RATIO = 6.0
 GATE_K_OVER_Q_DOMINANCE = 2.0
 
@@ -62,7 +66,31 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--checkpoint", type=Path)
+    parser.add_argument(
+        "--rotation",
+        choices=QAD_ROTATIONS,
+        default="hisq1024",
+        help="Linear input rotation the checkpoint was built with.",
+    )
     parser.add_argument("--device", default="cuda:0")
+    parser.add_argument(
+        "--device-map",
+        choices=("single", "auto"),
+        default="single",
+        help=(
+            "'auto' splits the decoder layers across every visible GPU; "
+            "--device must then be the first visible GPU."
+        ),
+    )
+    parser.add_argument(
+        "--inference-load",
+        action="store_true",
+        help=(
+            "Load a step-0 checkpoint straight into inference fake-quant "
+            "linears instead of through the QAT skeleton, so a 32B model fits "
+            "on one GPU, as faquant-eval-mmlu --inference-load does."
+        ),
+    )
     parser.add_argument("--sequence-length", type=int, default=4096)
     parser.add_argument("--samples", type=int, default=8)
     parser.add_argument("--alphas", default="0.25,0.5,0.75")
@@ -119,7 +147,7 @@ def _load_model(args: argparse.Namespace):
         local_files_only=True,
         dtype=torch.bfloat16,
         attn_implementation="flash_attention_2",
-        device_map={"": args.device},
+        device_map={"": args.device} if args.device_map == "single" else "auto",
         low_cpu_mem_usage=True,
     )
     if args.checkpoint is None:
@@ -128,41 +156,61 @@ def _load_model(args: argparse.Namespace):
         model.config.use_cache = False
         return model, tokenizer, {"linear_quantization": "none (BF16)"}
 
-    loaded = load_qad_student_checkpoint(
-        model,
-        args.checkpoint,
-        rotation="hisq1024",
-        seed=0,
-        hisq_block_size=1024,
-        hisq_seed=17,
-    )
+    if args.inference_load:
+        loaded = load_qad_inference_checkpoint(
+            model,
+            args.checkpoint,
+            rotation=args.rotation,
+            seed=0,
+            hisq_block_size=1024,
+            hisq_seed=17,
+        )
+        if loaded.requantized_max_abs != 0.0:
+            raise RuntimeError(
+                "saved weights are off their HiF4 grid: "
+                f"max_abs={loaded.requantized_max_abs}"
+            )
+        loaded_linears = converted_linears = loaded.linears
+    else:
+        loaded = load_qad_student_checkpoint(
+            model,
+            args.checkpoint,
+            rotation=args.rotation,
+            seed=0,
+            hisq_block_size=1024,
+            hisq_seed=17,
+        )
     if loaded.missing_keys or loaded.unexpected_keys:
         raise RuntimeError(
             f"checkpoint mismatch: missing={loaded.missing_keys}, "
             f"unexpected={loaded.unexpected_keys}"
         )
-    set_hif4_qat_metadata_mode(model, "fixed")
+    if not args.inference_load:
+        set_hif4_qat_metadata_mode(model, "fixed")
     model.requires_grad_(False)
     model.eval()
     model.gradient_checkpointing_disable()
     model.config.use_cache = False
-    converted = convert_hif4_qat_to_inference(model)
+    if not args.inference_load:
+        loaded_linears = loaded.qat.converted
+        converted_linears = convert_hif4_qat_to_inference(model).converted
     quantized = sum(isinstance(module, FakeQuantLinear) for module in model.modules())
     # A whole-layer exemption drops that layer's seven projections from the
     # quantized set, so the expected count is no longer a constant.
     protected = 7 * len(recorded_quant_exempt_layers(args.checkpoint)) + len(
         recorded_quant_exempt_modules(args.checkpoint)
     )
-    expected = EXPECTED_QUANTIZED_LINEARS - protected
+    total = QWEN_PROJECTIONS_PER_LAYER * model.config.num_hidden_layers
+    expected = total - protected
     if (
-        loaded.qat.converted != expected
-        or converted.converted != expected
+        loaded_linears != expected
+        or converted_linears != expected
         or quantized != expected
     ):
         raise RuntimeError(
-            f"expected {expected} quantized linears (252 minus {protected} "
+            f"expected {expected} quantized linears ({total} minus {protected} "
             f"protected projections), got "
-            f"loaded={loaded.qat.converted}, converted={converted.converted}, "
+            f"loaded={loaded_linears}, converted={converted_linears}, "
             f"modules={quantized}"
         )
     if args.device.startswith("cuda:"):
@@ -172,7 +220,8 @@ def _load_model(args: argparse.Namespace):
     # decide whether the calibration can run, since the scales have to be
     # recalibrated precisely when the weights have moved.
     provenance: dict[str, object] = {
-        "linear_quantization": "hif4 W4A4, GPTQ, HiSQ1024 input rotation",
+        "linear_quantization": "hif4 W4A4, GPTQ, "
+        + ("HiSQ1024 input rotation" if args.rotation == "hisq1024" else f"input rotation {args.rotation}"),
         "checkpoint": str(args.checkpoint),
     }
     init_receipt = args.checkpoint / "qad_init.json"
@@ -203,7 +252,7 @@ class _ChannelMaxCollector:
         self,
         attention: torch.nn.Module,
         head_dim: int,
-        device: str,
+        device: torch.device | str,
         *,
         key_value_heads: int,
         key_offset: torch.Tensor | None = None,
@@ -294,7 +343,7 @@ def main() -> None:
             collector = _ChannelMaxCollector(
                 layer.self_attn,
                 head_dim,
-                args.device,
+                layer.self_attn.q_proj.weight.device,
                 key_value_heads=key_value_heads,
                 key_offset=None if offsets is None else offsets[index],
             )
